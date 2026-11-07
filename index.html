@@ -80,6 +80,17 @@
   <div class="hint" id="api-key-state">当前：未设置（/relay 谁都能调）</div>
 </div>
 
+<div class="section">
+  <h2>每小时运行状态推送</h2>
+  <p style="font-size: 14px; color: #555; margin: 4px 0;">定时给所有启用的接收方发一条运行状态，证明服务还活着。没收到就说明服务可能掉了。</p>
+  <label style="display: flex; align-items: center; gap: 6px; font-weight: normal;">
+    <input type="checkbox" id="heartbeat_enabled" style="width: auto;"> 开启定时推送
+  </label>
+  <label>每隔多少分钟发一次</label>
+  <input id="heartbeat_minutes" type="number" min="1" value="60">
+  <div class="hint">默认 60 分钟（每小时一次）。改了点“保存配置”生效，不用重启。</div>
+</div>
+
 <div class="row">
   <button id="save">保存配置</button>
   <button id="test">发送测试消息</button>
@@ -260,6 +271,8 @@ function load() {
     $('api-key-state').textContent = c.has_api_key ? '当前：已设置（/relay 需要带密钥）' : '当前：未设置（/relay 谁都能调）';
     $('api_key').value = '';
     delete $('api_key').dataset.clear;
+    $('heartbeat_enabled').checked = c.heartbeat_enabled !== false;
+    $('heartbeat_minutes').value = c.heartbeat_minutes || 60;
     refreshTargetBox();
   });
   fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
@@ -282,7 +295,9 @@ $('save').addEventListener('click', function() {
     qq_recipients: recipients,
     test_message: $('test_message').value,
     api_key: $('api_key').value,
-    api_key_clear: $('api_key').dataset.clear === '1'
+    api_key_clear: $('api_key').dataset.clear === '1',
+    heartbeat_enabled: $('heartbeat_enabled').checked,
+    heartbeat_minutes: parseInt($('heartbeat_minutes').value, 10) || 60
   };
   fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function(r) { return r.json(); })

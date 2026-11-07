@@ -35,14 +35,16 @@ type QQRecipient struct {
 
 // Config 是中转目标的配置。密钥字段在读取接口里不回传明文。
 type Config struct {
-	Target          string        `json:"target"` // dingtalk 或 qq
-	DingtalkWebhook string        `json:"dingtalk_webhook"`
-	DingtalkSecret  string        `json:"dingtalk_secret"`
-	QQAppID         string        `json:"qq_appid"`
-	QQSecret        string        `json:"qq_secret"`
-	QQRecipients    []QQRecipient `json:"qq_recipients"`
-	TestMessage     string        `json:"test_message"`
-	APIKey          string        `json:"api_key"` // /relay 和 /api/test 的调用密钥，空着表示不设防
+	Target           string        `json:"target"` // dingtalk 或 qq
+	DingtalkWebhook  string        `json:"dingtalk_webhook"`
+	DingtalkSecret   string        `json:"dingtalk_secret"`
+	QQAppID          string        `json:"qq_appid"`
+	QQSecret         string        `json:"qq_secret"`
+	QQRecipients     []QQRecipient `json:"qq_recipients"`
+	TestMessage      string        `json:"test_message"`
+	APIKey           string        `json:"api_key"` // /relay 和 /api/test 的调用密钥，空着表示不设防
+	HeartbeatEnabled bool          `json:"heartbeat_enabled"` // 每隔一段时间给接收方发运行状态
+	HeartbeatMinutes int           `json:"heartbeat_minutes"` // 间隔（分钟），默认 60
 	// 旧的单接收方字段，只用来迁移（读到就并进 QQRecipients），不再使用。
 	QQTargetType   string `json:"qq_target_type"`
 	QQTargetOpenID string `json:"qq_target_openid"`
@@ -70,8 +72,10 @@ var (
 
 func defaultConfig() Config {
 	return Config{
-		Target:      "dingtalk",
-		TestMessage: "这是一条来自中转服务的测试消息。",
+		Target:           "dingtalk",
+		TestMessage:      "这是一条来自中转服务的测试消息。",
+		HeartbeatEnabled: true,
+		HeartbeatMinutes: 60,
 	}
 }
 
@@ -99,6 +103,12 @@ func loadConfig() {
 	}
 	if cfg.TestMessage == "" {
 		cfg.TestMessage = "这是一条来自中转服务的测试消息。"
+	}
+	// 心跳默认值：旧配置文件里没有这两个字段（分钟为 0），
+	// 就按默认开启、每小时一次；新配置按用户设的值来。
+	if cfg.HeartbeatMinutes <= 0 {
+		cfg.HeartbeatEnabled = true
+		cfg.HeartbeatMinutes = 60
 	}
 }
 
@@ -367,6 +377,78 @@ func relaySummary(results []SendResult) string {
 	return strings.Join(parts, "；")
 }
 
+// ---------- 每小时运行状态推送 ----------
+
+var serverStartTime = time.Now()
+
+// formatUptime 把运行时长格式化成“2小时15分”这种。
+func formatUptime(d time.Duration) string {
+	totalMinutes := int(d.Minutes())
+	if totalMinutes < 60 {
+		return fmt.Sprintf("%d分钟", totalMinutes)
+	}
+	hours := totalMinutes / 60
+	minutes := totalMinutes % 60
+	if hours < 24 {
+		return fmt.Sprintf("%d小时%d分钟", hours, minutes)
+	}
+	days := hours / 24
+	hours = hours % 24
+	return fmt.Sprintf("%d天%d小时%d分钟", days, hours, minutes)
+}
+
+// sendHeartbeat 给所有启用的接收方发一条运行状态。
+func sendHeartbeat() {
+	cfgMu.RLock()
+	target := cfg.Target
+	recipients := append([]QQRecipient(nil), cfg.QQRecipients...)
+	cfgMu.RUnlock()
+
+	var targetDesc string
+	if target == "qq" {
+		n := 0
+		for _, r := range recipients {
+			if r.Enabled && r.OpenID != "" {
+				n++
+			}
+		}
+		targetDesc = fmt.Sprintf("QQ，已启用 %d 个接收方", n)
+	} else {
+		targetDesc = "钉钉"
+	}
+	text := fmt.Sprintf("【中转服务·运行状态】\n时间：%s\n已运行：%s\n目标：%s",
+		time.Now().Format("2006-01-02 15:04:05"),
+		formatUptime(time.Since(serverStartTime)),
+		targetDesc,
+	)
+	ok, results := relay(text)
+	log.Printf("心跳已发（%s）：%s", map[bool]string{true: "全部成功", false: "有失败"}[ok], relaySummary(results))
+}
+
+// startHeartbeat 在后台跑：每隔配置的分钟数发一次运行状态。
+// 每 10 秒重读一次配置，所以改间隔、开关都不用重启；
+// 改短间隔后，下一次心跳会按新间隔尽快发出。
+func startHeartbeat() {
+	go func() {
+		lastHeartbeat := serverStartTime
+		for {
+			time.Sleep(10 * time.Second)
+			cfgMu.RLock()
+			enabled := cfg.HeartbeatEnabled
+			minutes := cfg.HeartbeatMinutes
+			cfgMu.RUnlock()
+			if !enabled || minutes <= 0 {
+				// 没开就继续等，用户随时可能在页面上打开。
+				continue
+			}
+			if time.Since(lastHeartbeat) >= time.Duration(minutes)*time.Minute {
+				sendHeartbeat()
+				lastHeartbeat = time.Now()
+			}
+		}
+	}()
+}
+
 // ---------- HTTP 接口 ----------
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -392,6 +474,8 @@ func maskedConfig() map[string]any {
 		"qq_recipients":       recipients,
 		"test_message":        cfg.TestMessage,
 		"has_api_key":         cfg.APIKey != "",
+		"heartbeat_enabled":   cfg.HeartbeatEnabled,
+		"heartbeat_minutes":   cfg.HeartbeatMinutes,
 	}
 }
 
@@ -458,6 +542,10 @@ func handlePostConfig(w http.ResponseWriter, r *http.Request) {
 		cfg.APIKey = ""
 	} else if input.APIKey != "" {
 		cfg.APIKey = input.APIKey
+	}
+	cfg.HeartbeatEnabled = input.HeartbeatEnabled
+	if input.HeartbeatMinutes > 0 {
+		cfg.HeartbeatMinutes = input.HeartbeatMinutes
 	}
 	cfg.QQTargetType = ""
 	cfg.QQTargetOpenID = ""
@@ -545,6 +633,7 @@ func main() {
 	loadConfig()
 	loadHistory()
 	startQQListener()
+	startHeartbeat()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
 	mux.HandleFunc("/health", handleHealth)
