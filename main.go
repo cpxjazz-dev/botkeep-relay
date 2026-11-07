@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
-	_ "embed"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -25,6 +25,9 @@ import (
 
 //go:embed index.html
 var indexHTML string
+
+//go:embed blog
+var blogFS embed.FS
 
 const configPath = "config.json"
 
@@ -666,6 +669,11 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
 	mux.HandleFunc("/health", handleHealth)
+	// 博客：纯静态页面，嵌在二进制里，/blog/ 下按 blog/ 目录 serving。
+	// 以后迁到 Cloudflare Pages 时直接把 blog/ 目录推过去，不用改内容。
+	if blogSub, err := fs.Sub(blogFS, "blog"); err == nil {
+		mux.Handle("/blog/", http.StripPrefix("/blog/", http.FileServer(http.FS(blogSub))))
+	}
 	mux.HandleFunc("/api/openids", handleOpenIDs)
 	mux.HandleFunc("/api/history", handleHistory)
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
