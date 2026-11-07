@@ -1,0 +1,5 @@
+# 运行时生成的文件，含真实凭据和 openid，绝不能提交。
+config.json
+openids.json
+# 编译产物
+relay

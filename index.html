@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中转服务配置</title>
+<style>
+  body { font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 640px; margin: 32px auto; padding: 0 16px; color: #222; line-height: 1.6; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .sub { color: #666; font-size: 14px; margin-bottom: 20px; }
+  label { display: block; font-weight: 600; margin: 14px 0 4px; }
+  input, select { width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 15px; border: 1px solid #ccc; border-radius: 6px; }
+  .hint { color: #888; font-size: 13px; margin-top: 2px; }
+  .row { display: flex; gap: 10px; margin-top: 20px; }
+  button { flex: 1; padding: 10px; font-size: 15px; border: 0; border-radius: 6px; cursor: pointer; }
+  #save { background: #1677ff; color: #fff; }
+  #test { background: #eee; color: #222; }
+  #msg { margin-top: 16px; padding: 10px 12px; border-radius: 6px; display: none; }
+  #msg.ok { display: block; background: #e6f7e6; color: #237023; }
+  #msg.err { display: block; background: #fdecea; color: #a1271f; }
+  .section { border: 1px solid #e5e5e5; border-radius: 8px; padding: 4px 16px 16px; margin-top: 16px; }
+  .section h2 { font-size: 16px; margin: 10px 0 4px; }
+  code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: #f5f5f5; padding: 10px; border-radius: 6px; overflow-x: auto; font-size: 13px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1>中转服务配置</h1>
+<div class="sub">收到一条消息后，按这里选的目标转发。当前状态：<span id="status">加载中…</span></div>
+
+<label>转发目标</label>
+<select id="target">
+  <option value="dingtalk">钉钉自定义机器人</option>
+  <option value="qq">QQ 官方机器人</option>
+</select>
+
+<div id="dingtalk-box" class="section">
+  <h2>钉钉</h2>
+  <label>机器人 Webhook 地址</label>
+  <input id="dingtalk_webhook" type="text" placeholder="https://oapi.dingtalk.com/robot/send?access_token=...">
+  <div class="hint">在钉钉群里添加自定义机器人后，把 webhook 地址贴进来。</div>
+  <label>加签密钥（可选）</label>
+  <input id="dingtalk_secret" type="password" placeholder="留空 = 不改">
+  <div class="hint">只在机器人开启了“加签”安全设置时才填。留空表示保持原来的值。</div>
+</div>
+
+<div id="qq-box" class="section hidden">
+  <h2>QQ 官方机器人</h2>
+  <label>AppID</label>
+  <input id="qq_appid" type="text" placeholder="QQ 开放平台上的 AppID">
+  <label>AppSecret</label>
+  <input id="qq_secret" type="password" placeholder="留空 = 不改">
+  <div class="hint">在 QQ 开放平台（q.qq.com）应用管理里查看。留空表示保持原来的值。</div>
+
+  <h2 style="margin-top: 18px;">接收方（可多个）</h2>
+  <p style="font-size: 14px; color: #555; margin: 4px 0;">勾上的都会收到：群聊和私聊可以同时发，私聊也可以加好几个人。只想发一个就只勾一个。</p>
+  <div id="recipient-list"></div>
+  <button id="add-recipient" style="margin-top: 8px; padding: 6px 14px; font-size: 14px; flex: none;">+ 添加接收方</button>
+
+  <h2 style="margin-top: 18px;">找不到 openid？让机器人自己抓</h2>
+  <p style="font-size: 14px; color: #555;">QQ 不提供“QQ 号查 openid”的办法，openid 只在机器人收到消息时出现。所以：先在上面填好 AppID 和 AppSecret 并保存，然后用 QQ 给机器人发一条消息（私聊它，或把它拉进群里发一条），openid 就会出现在这里，点“添加为接收方”就能直接加到上面。</p>
+  <div style="font-size: 14px; color: #666;">监听状态：<span id="qq-state">加载中…</span></div>
+  <div id="openid-list" style="margin-top: 8px;"></div>
+</div>
+
+<label style="margin-top: 20px;">测试消息（点“发送测试消息”就发这句）</label>
+<input id="test_message" type="text" placeholder="这是一条来自中转服务的测试消息。">
+<div class="hint">可以自己改。测试会发给上面所有勾上的接收方。</div>
+
+<div class="row">
+  <button id="save">保存配置</button>
+  <button id="test">发送测试消息</button>
+</div>
+<div id="msg"></div>
+
+<div class="section">
+  <h2>怎么用</h2>
+  <p>别的服务想发消息时，往这个地址 POST 一条 JSON：</p>
+  <p><code>POST <span id="relay-url"></span></code></p>
+  <pre>{
+  "text": "有人按门铃了",
+  "title": "门口提醒"
+}</pre>
+  <p>title 可不填。发给所有勾上的接收方，返回每家的结果：<code>{"ok": true, "results": [{"target": "私聊 Alice", "ok": true, "detail": "..."}]}</code>。</p>
+</div>
+
+<script>
+var $ = function(id) { return document.getElementById(id); };
+var recipients = [];
+function showMsg(text, ok) {
+  var m = $('msg');
+  m.textContent = text;
+  m.className = ok ? 'ok' : 'err';
+}
+function refreshTargetBox() {
+  var t = $('target').value;
+  $('dingtalk-box').classList.toggle('hidden', t !== 'dingtalk');
+  $('qq-box').classList.toggle('hidden', t !== 'qq');
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function renderRecipients() {
+  var box = $('recipient-list');
+  box.innerHTML = '';
+  if (!recipients.length) {
+    box.innerHTML = '<div style="font-size: 14px; color: #888;">还没有接收方，点下面“添加接收方”，或在“找不到 openid？”里点“添加为接收方”。</div>';
+    return;
+  }
+  recipients.forEach(function(r, i) {
+    var row = document.createElement('div');
+    row.style.cssText = 'border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 14px;';
+    row.innerHTML =
+      '<label style="display: flex; align-items: center; gap: 6px; font-weight: normal; margin: 0;">' +
+        '<input type="checkbox" data-i="' + i + '" data-f="enabled"' + (r.enabled ? ' checked' : '') + ' style="width: auto;"> 发给这个' +
+      '</label>' +
+      '<div style="display: flex; gap: 6px; margin-top: 6px;">' +
+        '<select data-i="' + i + '" data-f="type" style="width: 110px; flex: none;">' +
+          '<option value="user"' + (r.type === 'user' ? ' selected' : '') + '>私聊</option>' +
+          '<option value="group"' + (r.type === 'group' ? ' selected' : '') + '>群聊</option>' +
+        '</select>' +
+        '<input type="text" data-i="' + i + '" data-f="name" placeholder="备注名（可选）" value="' + esc(r.name) + '" style="width: 120px; flex: none;">' +
+        '<input type="text" data-i="' + i + '" data-f="openid" placeholder="openid" value="' + esc(r.openid) + '">' +
+      '</div>' +
+      '<button data-i="' + i + '" data-act="del" style="margin-top: 6px; padding: 4px 12px; font-size: 13px; flex: none;">删除</button>';
+    row.querySelectorAll('[data-f]').forEach(function(el) {
+      el.addEventListener('change', function() {
+        var idx = parseInt(this.getAttribute('data-i'), 10);
+        var f = this.getAttribute('data-f');
+        if (f === 'enabled') recipients[idx].enabled = this.checked;
+        else recipients[idx][f] = this.value;
+      });
+    });
+    row.querySelector('[data-act="del"]').addEventListener('click', function() {
+      recipients.splice(parseInt(this.getAttribute('data-i'), 10), 1);
+      renderRecipients();
+    });
+    box.appendChild(row);
+  });
+}
+$('add-recipient').addEventListener('click', function() {
+  recipients.push({ type: 'user', openid: '', name: '', enabled: true });
+  renderRecipients();
+});
+function loadOpenIDs() {
+  fetch('/api/openids').then(function(r) { return r.json(); }).then(function(d) {
+    $('qq-state').textContent = d.state || '';
+    var box = $('openid-list');
+    box.innerHTML = '';
+    var list = d.openids || [];
+    if (!list.length) {
+      box.innerHTML = '<div style="font-size: 14px; color: #888;">还没有抓到 openid。填好 AppID 和 AppSecret 并保存后，给机器人发一条消息试试。</div>';
+      return;
+    }
+    list.forEach(function(o) {
+      var row = document.createElement('div');
+      row.style.cssText = 'border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px 10px; margin-top: 6px; font-size: 14px;';
+      var kind = o.kind === 'group' ? '群聊' : '私聊';
+      var name = o.name ? '（' + o.name + '）' : '';
+      var sender = o.sender_openid ? '<div style="color:#888; font-size: 13px;">发消息的人：' + o.sender_openid + '</div>' : '';
+      row.innerHTML = '<div><b>' + kind + '</b>' + name + '</div>' +
+        '<div style="word-break: break-all;">' + o.openid + '</div>' + sender +
+        '<button style="margin-top: 6px; padding: 4px 12px; font-size: 13px; flex: none;" data-openid="' + o.openid + '" data-kind="' + o.kind + '" data-name="' + esc(o.name || '') + '">添加为接收方</button> ' +
+        '<button style="margin-top: 6px; padding: 4px 12px; font-size: 13px; flex: none;" data-copy="' + o.openid + '">复制 openid</button>';
+      row.querySelector('[data-openid]').addEventListener('click', function() {
+        var openid = this.getAttribute('data-openid');
+        var kind = this.getAttribute('data-kind');
+        var name = this.getAttribute('data-name');
+        if (recipients.some(function(r) { return r.openid === openid && r.type === kind; })) {
+          showMsg('这个接收方已经在列表里了。', true);
+          return;
+        }
+        recipients.push({ type: kind, openid: openid, name: name, enabled: true });
+        renderRecipients();
+        showMsg('已加到接收方列表，点“保存配置”生效。', true);
+      });
+      row.querySelector('[data-copy]').addEventListener('click', function() {
+        var v = this.getAttribute('data-copy');
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(v).then(function() { showMsg('已复制。', true); });
+        }
+      });
+      box.appendChild(row);
+    });
+  }).catch(function() { $('qq-state').textContent = '无法读取'; });
+}
+function load() {
+  fetch('/api/config').then(function(r) { return r.json(); }).then(function(c) {
+    $('target').value = c.target || 'dingtalk';
+    $('dingtalk_webhook').value = c.dingtalk_webhook || '';
+    if (c.dingtalk_has_secret) $('dingtalk_secret').placeholder = '已填写，留空 = 不改';
+    $('qq_appid').value = c.qq_appid || '';
+    if (c.qq_has_secret) $('qq_secret').placeholder = '已填写，留空 = 不改';
+    recipients = (c.qq_recipients || []).map(function(r) {
+      return { type: r.type || 'user', openid: r.openid || '', name: r.name || '', enabled: r.enabled !== false };
+    });
+    renderRecipients();
+    $('test_message').value = c.test_message || '这是一条来自中转服务的测试消息。';
+    refreshTargetBox();
+  });
+  fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
+    $('status').textContent = '运行中，当前目标：' + (h.target === 'qq' ? 'QQ' : '钉钉');
+  }).catch(function() { $('status').textContent = '无法读取状态'; });
+  $('relay-url').textContent = location.origin + '/relay';
+  loadOpenIDs();
+  setInterval(loadOpenIDs, 10000);
+}
+$('target').addEventListener('change', refreshTargetBox);
+$('save').addEventListener('click', function() {
+  var body = {
+    target: $('target').value,
+    dingtalk_webhook: $('dingtalk_webhook').value.trim(),
+    dingtalk_secret: $('dingtalk_secret').value,
+    qq_appid: $('qq_appid').value.trim(),
+    qq_secret: $('qq_secret').value,
+    qq_recipients: recipients,
+    test_message: $('test_message').value
+  };
+  fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) { showMsg('已保存。', true); load(); }
+      else showMsg('保存失败：' + (d.error || '未知错误'), false);
+    })
+    .catch(function(e) { showMsg('保存失败：' + e.message, false); });
+});
+$('test').addEventListener('click', function() {
+  showMsg('发送中…', true);
+  fetch('/api/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: $('test_message').value }) })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.results && d.results.length > 1) {
+        var lines = d.results.map(function(x) { return (x.ok ? '✓ ' : '✗ ') + x.detail; });
+        showMsg(lines.join('\n'), !!d.ok);
+      } else {
+        showMsg(d.detail || (d.ok ? '已发送' : '发送失败'), !!d.ok);
+      }
+    })
+    .catch(function(e) { showMsg('发送失败：' + e.message, false); });
+});
+load();
+</script>
+</body>
+</html>

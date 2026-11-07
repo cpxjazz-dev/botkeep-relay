@@ -1,0 +1,53 @@
+# 中转服务端（Go）
+
+收一条消息，按配置转发到钉钉自定义机器人或 QQ 官方机器人，附带一个网页配置界面。
+
+## 为什么是 Go
+
+- 零第三方依赖，只用标准库，**不用装任何包**，启动不到 1 秒，躲开了 Botkeep 约 70 秒的启动窗口。
+- 编译后是单个约 10 MB 的静态二进制，运行时内存十几 MB，放在 512 MB 的免费机上很宽松。
+- 配置存在 `config.json`，重启后还在，网页上改。
+
+## 文件
+
+- `main.go`：服务端全部逻辑（HTTP 接口 + 钉钉/QQ 发送）。
+- `index.html`：配置页面（`//go:embed` 编进二进制）。
+- `go.mod`：模块定义，`go 1.27`。
+- `config.json`：运行时生成，不用手动建。
+
+## 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/` | 配置页面 |
+| GET | `/health` | `{"status":"ok","target":"dingtalk"}` |
+| GET | `/api/config` | 当前配置（密钥只返回“是否已填”，不回传明文） |
+| POST | `/api/config` | 保存配置；密钥字段留空 = 保持原值 |
+| POST | `/api/test` | 发一条测试消息到当前目标 |
+| POST | `/relay` | 转发消息，JSON：`{"text": "...", "title": "..."}`，title 可不填 |
+
+端口取环境变量 `SERVER_PORT`（Botkeep 会自动注入），没有就取 `PORT`，再没有用 8080。
+
+## 部署（Botkeep）
+
+服务器已切到 Go 1.27.1，启动命令 `go build -o relay . && ./relay`（先编译出约 10 MB 的静态二进制再跑，重启快、内存只有约 43 MB；直接 `go run .` 也能跑，但编译慢、内存约 200 MB）。把 `main.go`、`index.html`、`go.mod` 传到服务器根目录，点 Start 即可。域名：`https://rxs3yg.bot-keep.xyz/`。
+
+## QQ 说明
+
+- 需要 QQ 开放平台（q.qq.com）的 AppID 和 AppSecret，机器人要在应用里开通相关权限。
+- 接收方 openid 从机器人收到的事件里拿：私聊用 C2C 接口，群聊用群接口。
+- 主动发消息的载荷形状是按官方文档写的，第一次用“发送测试消息”按钮实测一次，报错会直接显示在页面上，再按报错调。
+
+### 找不到 openid 怎么办
+
+QQ 不提供“QQ 号查 openid”的接口，openid 只在机器人收到消息的事件里出现。所以服务里加了一个网关监听：填好 AppID 和 AppSecret 并保存后，服务会自动连上 QQ 的 WebSocket 网关（只订阅群聊 + C2C 消息这一个 intent，`1 << 25`），然后用 QQ 给机器人发一条消息（私聊它，或把它拉进群里发一条），openid 就会出现在配置页的“找不到 openid？”一节里，点复制填到接收方 OpenID 即可。抓到的 openid 存在服务器上的 `openids.json`，重启后还在。
+
+注意两点：QQ 约每 30 分钟会主动断开网关连接一次（4009），这是正常的，监听会自动重连；如果 Identify 被拒（一般是群聊 + C2C 的 intent 没在开放平台开通），监听状态会显示原因，先去开放平台把权限开了再试。
+
+### QQ token 的坑
+
+`bots.qq.com/app/getAppAccessToken` 返回的 `expires_in` 有时是字符串 `"6253"`，有时是数字 `7200`。Go 的 `encoding/json` 按 `int` 解析会在它是字符串时报错，导致明明拿到 token 却报“获取失败”。所以 `qqTokenResp` 里不解析 `expires_in`，只取 `access_token`。
+
+## 验证记录
+
+- 2026-11-07 在 InstaBox 免费机（Go 1.27.1）上 `go vet` 干净、`go build` 通过；跑起来后 `/health`、`/api/config`、配置页、`/relay` 未配置时优雅报错、保存配置落盘都测过；用假 webhook 调钉钉拿到了真实返回 `errcode=300005 token is not exist`，说明钉钉发送链路是通的。
