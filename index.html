@@ -68,6 +68,18 @@
 <input id="test_message" type="text" placeholder="这是一条来自中转服务的测试消息。">
 <div class="hint">可以自己改。测试会发给上面所有勾上的接收方。</div>
 
+<div class="section">
+  <h2>调用密钥（防别人乱发）</h2>
+  <p style="font-size: 14px; color: #555; margin: 4px 0;">/relay 这个地址谁知道了都能往你的 QQ 发消息。设个密钥后，调用时要带上它，不带或带错了会返回 401。密钥存在服务端，页面上只显示“已设置”，看不到明文。</p>
+  <label>API Key</label>
+  <input id="api_key" type="password" placeholder="留空 = 不改">
+  <div style="display: flex; gap: 8px; margin-top: 8px;">
+    <button id="gen-key" style="padding: 6px 14px; font-size: 14px; flex: none;">生成随机密钥</button>
+    <button id="clear-key" style="padding: 6px 14px; font-size: 14px; flex: none;">清除密钥（不设防）</button>
+  </div>
+  <div class="hint" id="api-key-state">当前：未设置（/relay 谁都能调）</div>
+</div>
+
 <div class="row">
   <button id="save">保存配置</button>
   <button id="test">发送测试消息</button>
@@ -83,6 +95,12 @@
   "title": "门口提醒"
 }</pre>
   <p>title 可不填。发给所有勾上的接收方，返回每家的结果：<code>{"ok": true, "results": [{"target": "私聊 Alice", "ok": true, "detail": "..."}]}</code>。</p>
+  <p>如果设了调用密钥，调 /relay 时要带上它（二选一）：请求头 <code>X-Api-Key: 你的密钥</code>，或地址后面加 <code>?key=你的密钥</code>。不带或带错返回 401。</p>
+</div>
+
+<div class="section">
+  <h2>发送记录（最近 50 条）</h2>
+  <div id="history-list" style="font-size: 14px;">加载中…</div>
 </div>
 
 <script>
@@ -185,6 +203,48 @@ function loadOpenIDs() {
     });
   }).catch(function() { $('qq-state').textContent = '无法读取'; });
 }
+function loadHistory() {
+  fetch('/api/history').then(function(r) { return r.json(); }).then(function(d) {
+    var box = $('history-list');
+    var list = d.history || [];
+    if (!list.length) {
+      box.innerHTML = '<div style="color: #888;">还没有发送记录。发一条测试消息或调一次 /relay 就会出现在这里。</div>';
+      return;
+    }
+    box.innerHTML = '';
+    list.forEach(function(rec) {
+      var row = document.createElement('div');
+      row.style.cssText = 'border: 1px solid #e5e5e5; border-radius: 6px; padding: 8px 10px; margin-top: 6px;';
+      var t = new Date(rec.time);
+      var timeStr = t.getFullYear() + '-' + ('0' + (t.getMonth() + 1)).slice(-2) + '-' + ('0' + t.getDate()).slice(-2) + ' ' + ('0' + t.getHours()).slice(-2) + ':' + ('0' + t.getMinutes()).slice(-2) + ':' + ('0' + t.getSeconds()).slice(-2);
+      var src = rec.source === 'test' ? '页面测试' : '外部调用';
+      var resLines = (rec.results || []).map(function(x) { return (x.ok ? '✓ ' : '✗ ') + x.detail; }).join('<br>');
+      row.innerHTML = '<div style="color: #888; font-size: 13px;">' + timeStr + ' · ' + src + '</div>' +
+        '<div style="word-break: break-all;">' + esc(rec.text) + '</div>' +
+        '<div style="font-size: 13px;">' + resLines + '</div>';
+      box.appendChild(row);
+    });
+  }).catch(function() { $('history-list').textContent = '无法读取'; });
+}
+$('gen-key').addEventListener('click', function() {
+  var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  var key = '';
+  var buf = new Uint8Array(24);
+  if (window.crypto && window.crypto.getRandomValues) {
+    window.crypto.getRandomValues(buf);
+    for (var i = 0; i < buf.length; i++) key += chars[buf[i] % chars.length];
+  } else {
+    for (var j = 0; j < 24; j++) key += chars[Math.floor(Math.random() * chars.length)];
+  }
+  $('api_key').value = key;
+  $('api_key').type = 'text';
+  showMsg('已生成一个随机密钥，点“保存配置”生效。保存后调用 /relay 记得带上它。', true);
+});
+$('clear-key').addEventListener('click', function() {
+  $('api_key').value = '';
+  $('api_key').dataset.clear = '1';
+  showMsg('已标记清除密钥，点“保存配置”后 /relay 就不设防了。', true);
+});
 function load() {
   fetch('/api/config').then(function(r) { return r.json(); }).then(function(c) {
     $('target').value = c.target || 'dingtalk';
@@ -197,6 +257,9 @@ function load() {
     });
     renderRecipients();
     $('test_message').value = c.test_message || '这是一条来自中转服务的测试消息。';
+    $('api-key-state').textContent = c.has_api_key ? '当前：已设置（/relay 需要带密钥）' : '当前：未设置（/relay 谁都能调）';
+    $('api_key').value = '';
+    delete $('api_key').dataset.clear;
     refreshTargetBox();
   });
   fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
@@ -204,7 +267,9 @@ function load() {
   }).catch(function() { $('status').textContent = '无法读取状态'; });
   $('relay-url').textContent = location.origin + '/relay';
   loadOpenIDs();
+  loadHistory();
   setInterval(loadOpenIDs, 10000);
+  setInterval(loadHistory, 15000);
 }
 $('target').addEventListener('change', refreshTargetBox);
 $('save').addEventListener('click', function() {
@@ -215,7 +280,9 @@ $('save').addEventListener('click', function() {
     qq_appid: $('qq_appid').value.trim(),
     qq_secret: $('qq_secret').value,
     qq_recipients: recipients,
-    test_message: $('test_message').value
+    test_message: $('test_message').value,
+    api_key: $('api_key').value,
+    api_key_clear: $('api_key').dataset.clear === '1'
   };
   fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function(r) { return r.json(); })
@@ -236,6 +303,7 @@ $('test').addEventListener('click', function() {
       } else {
         showMsg(d.detail || (d.ok ? '已发送' : '发送失败'), !!d.ok);
       }
+      loadHistory();
     })
     .catch(function(e) { showMsg('发送失败：' + e.message, false); });
 });

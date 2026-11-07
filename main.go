@@ -42,10 +42,26 @@ type Config struct {
 	QQSecret        string        `json:"qq_secret"`
 	QQRecipients    []QQRecipient `json:"qq_recipients"`
 	TestMessage     string        `json:"test_message"`
+	APIKey          string        `json:"api_key"` // /relay 和 /api/test 的调用密钥，空着表示不设防
 	// 旧的单接收方字段，只用来迁移（读到就并进 QQRecipients），不再使用。
 	QQTargetType   string `json:"qq_target_type"`
 	QQTargetOpenID string `json:"qq_target_openid"`
 }
+
+// SendRecord 是一次发送的记录。
+type SendRecord struct {
+	Time    time.Time    `json:"time"`
+	Source  string       `json:"source"` // relay（外部调用）或 test（页面测试）
+	Text    string       `json:"text"`   // 正文（截断到 200 字）
+	Results []SendResult `json:"results"`
+}
+
+const historyPath = "history.json"
+
+var (
+	history   []SendRecord
+	historyMu sync.Mutex
+)
 
 var (
 	cfg   Config
@@ -94,6 +110,71 @@ func saveConfig() error {
 		return err
 	}
 	return os.WriteFile(configPath, data, 0644)
+}
+
+// ---------- 发送记录 ----------
+
+func loadHistory() {
+	data, err := os.ReadFile(historyPath)
+	if err != nil {
+		return
+	}
+	var list []SendRecord
+	if err := json.Unmarshal(data, &list); err != nil {
+		return
+	}
+	historyMu.Lock()
+	history = list
+	historyMu.Unlock()
+}
+
+func saveHistory() {
+	historyMu.Lock()
+	list := append([]SendRecord(nil), history...)
+	historyMu.Unlock()
+	data, err := json.MarshalIndent(list, "", "  ")
+	if err != nil {
+		return
+	}
+	os.WriteFile(historyPath, data, 0644)
+}
+
+// recordSend 记一次发送，最多留最近 50 条。
+func recordSend(source, text string, results []SendResult) {
+	if len(text) > 200 {
+		text = text[:200] + "…"
+	}
+	rec := SendRecord{
+		Time:    time.Now(),
+		Source:  source,
+		Text:    text,
+		Results: results,
+	}
+	historyMu.Lock()
+	history = append([]SendRecord{rec}, history...)
+	if len(history) > 50 {
+		history = history[:50]
+	}
+	historyMu.Unlock()
+	saveHistory()
+}
+
+// ---------- /relay 鉴权 ----------
+
+// checkAPIKey 校验调用密钥。没设密钥时不设防；设了就必须带对。
+// 密钥放请求头 X-Api-Key，或 ?key= 参数。
+func checkAPIKey(r *http.Request) bool {
+	cfgMu.RLock()
+	key := cfg.APIKey
+	cfgMu.RUnlock()
+	if key == "" {
+		return true
+	}
+	got := r.Header.Get("X-Api-Key")
+	if got == "" {
+		got = r.URL.Query().Get("key")
+	}
+	return got == key
 }
 
 // ---------- 发送器 ----------
@@ -303,13 +384,14 @@ func maskedConfig() map[string]any {
 		recipients = []QQRecipient{}
 	}
 	return map[string]any{
-		"target":            cfg.Target,
-		"dingtalk_webhook":  cfg.DingtalkWebhook,
+		"target":              cfg.Target,
+		"dingtalk_webhook":    cfg.DingtalkWebhook,
 		"dingtalk_has_secret": cfg.DingtalkSecret != "",
-		"qq_appid":          cfg.QQAppID,
-		"qq_has_secret":     cfg.QQSecret != "",
-		"qq_recipients":     recipients,
-		"test_message":      cfg.TestMessage,
+		"qq_appid":            cfg.QQAppID,
+		"qq_has_secret":       cfg.QQSecret != "",
+		"qq_recipients":       recipients,
+		"test_message":        cfg.TestMessage,
+		"has_api_key":         cfg.APIKey != "",
 	}
 }
 
@@ -325,7 +407,11 @@ func handleGetConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func handlePostConfig(w http.ResponseWriter, r *http.Request) {
-	var input Config
+	// 用局部结构接请求，比 Config 多一个 api_key_clear（清除密钥用）。
+	var input struct {
+		Config
+		APIKeyClear bool `json:"api_key_clear"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求不是合法 JSON: " + err.Error()})
 		return
@@ -367,6 +453,12 @@ func handlePostConfig(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(input.TestMessage) != "" {
 		cfg.TestMessage = input.TestMessage
 	}
+	// api_key 留空 = 保持原来的值；想取消鉴权就发 api_key_clear=true。
+	if input.APIKeyClear {
+		cfg.APIKey = ""
+	} else if input.APIKey != "" {
+		cfg.APIKey = input.APIKey
+	}
 	cfg.QQTargetType = ""
 	cfg.QQTargetOpenID = ""
 	cfgMu.Unlock()
@@ -378,6 +470,10 @@ func handlePostConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleTest(w http.ResponseWriter, r *http.Request) {
+	if !checkAPIKey(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "密钥不对，带上正确的 X-Api-Key 请求头或 ?key= 参数"})
+		return
+	}
 	text := ""
 	if r.Body != nil {
 		var input struct {
@@ -392,7 +488,18 @@ func handleTest(w http.ResponseWriter, r *http.Request) {
 		cfgMu.RUnlock()
 	}
 	ok, results := relay(text)
+	recordSend("test", text, results)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": ok, "detail": relaySummary(results), "results": results})
+}
+
+func handleHistory(w http.ResponseWriter, r *http.Request) {
+	historyMu.Lock()
+	list := append([]SendRecord(nil), history...)
+	historyMu.Unlock()
+	if list == nil {
+		list = []SendRecord{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"history": list})
 }
 
 func handleRelay(w http.ResponseWriter, r *http.Request) {
@@ -416,7 +523,12 @@ func handleRelay(w http.ResponseWriter, r *http.Request) {
 	if t := strings.TrimSpace(input.Title); t != "" {
 		text = t + "\n" + text
 	}
+	if !checkAPIKey(r) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "密钥不对，带上正确的 X-Api-Key 请求头或 ?key= 参数"})
+		return
+	}
 	ok, results := relay(text)
+	recordSend("relay", text, results)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": ok, "detail": relaySummary(results), "results": results})
 }
 
@@ -431,11 +543,13 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	loadConfig()
+	loadHistory()
 	startQQListener()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleIndex)
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/api/openids", handleOpenIDs)
+	mux.HandleFunc("/api/history", handleHistory)
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet {
 			handleGetConfig(w, r)

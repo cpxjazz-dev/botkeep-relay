@@ -1,5 +1,6 @@
-# 运行时生成的文件，含真实凭据和 openid，绝不能提交。
+# 运行时生成的文件，含真实凭据、openid 和消息内容，绝不能提交。
 config.json
 openids.json
+history.json
 # 编译产物
 relay
