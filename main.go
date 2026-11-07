@@ -11,10 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -75,7 +78,7 @@ func defaultConfig() Config {
 		Target:           "dingtalk",
 		TestMessage:      "这是一条来自中转服务的测试消息。",
 		HeartbeatEnabled: true,
-		HeartbeatMinutes: 60,
+		HeartbeatMinutes: 30,
 	}
 }
 
@@ -105,10 +108,10 @@ func loadConfig() {
 		cfg.TestMessage = "这是一条来自中转服务的测试消息。"
 	}
 	// 心跳默认值：旧配置文件里没有这两个字段（分钟为 0），
-	// 就按默认开启、每小时一次；新配置按用户设的值来。
+	// 就按默认开启、每 30 分钟一次；新配置按用户设的值来。
 	if cfg.HeartbeatMinutes <= 0 {
 		cfg.HeartbeatEnabled = true
-		cfg.HeartbeatMinutes = 60
+		cfg.HeartbeatMinutes = 30
 	}
 }
 
@@ -397,6 +400,23 @@ func formatUptime(d time.Duration) string {
 	return fmt.Sprintf("%d天%d小时%d分钟", days, hours, minutes)
 }
 
+// dirSize 算一个目录下所有文件的总大小（字节）。
+func dirSize(root string) int64 {
+	var size int64
+	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !d.IsDir() {
+			if info, err := d.Info(); err == nil {
+				size += info.Size()
+			}
+		}
+		return nil
+	})
+	return size
+}
+
 // sendHeartbeat 给所有启用的接收方发一条运行状态。
 func sendHeartbeat() {
 	cfgMu.RLock()
@@ -416,13 +436,22 @@ func sendHeartbeat() {
 	} else {
 		targetDesc = "钉钉"
 	}
-	text := fmt.Sprintf("【中转服务·运行状态】\n时间：%s\n已运行：%s\n目标：%s",
+	// 进程内存：Go 从系统拿到的总内存（接近容器里看到的占用）。
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	memMB := float64(m.Sys) / 1024 / 1024
+	// 存储：服务所在目录下所有文件加起来。
+	storageMB := float64(dirSize(".")) / 1024 / 1024
+	text := fmt.Sprintf("【中转服务·运行状态】\n时间：%s\n已运行：%s\n内存：%.1f MB\n存储已用：%.1f MB\n目标：%s",
 		time.Now().Format("2006-01-02 15:04:05"),
 		formatUptime(time.Since(serverStartTime)),
+		memMB,
+		storageMB,
 		targetDesc,
 	)
 	ok, results := relay(text)
 	log.Printf("心跳已发（%s）：%s", map[bool]string{true: "全部成功", false: "有失败"}[ok], relaySummary(results))
+	log.Printf("心跳内容：%s", strings.ReplaceAll(text, "\n", " | "))
 }
 
 // startHeartbeat 在后台跑：每隔配置的分钟数发一次运行状态。

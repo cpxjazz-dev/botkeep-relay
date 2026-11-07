@@ -87,8 +87,8 @@
     <input type="checkbox" id="heartbeat_enabled" style="width: auto;"> 开启定时推送
   </label>
   <label>每隔多少分钟发一次</label>
-  <input id="heartbeat_minutes" type="number" min="1" value="60">
-  <div class="hint">默认 60 分钟（每小时一次）。改了点“保存配置”生效，不用重启。</div>
+  <input id="heartbeat_minutes" type="number" min="1" value="30">
+  <div class="hint">默认 30 分钟（半小时一次）。改了点“保存配置”生效，不用重启。</div>
 </div>
 
 <div class="row">
@@ -272,7 +272,7 @@ function load() {
     $('api_key').value = '';
     delete $('api_key').dataset.clear;
     $('heartbeat_enabled').checked = c.heartbeat_enabled !== false;
-    $('heartbeat_minutes').value = c.heartbeat_minutes || 60;
+    $('heartbeat_minutes').value = c.heartbeat_minutes || 30;
     refreshTargetBox();
   });
   fetch('/health').then(function(r) { return r.json(); }).then(function(h) {
@@ -297,7 +297,7 @@ $('save').addEventListener('click', function() {
     api_key: $('api_key').value,
     api_key_clear: $('api_key').dataset.clear === '1',
     heartbeat_enabled: $('heartbeat_enabled').checked,
-    heartbeat_minutes: parseInt($('heartbeat_minutes').value, 10) || 60
+    heartbeat_minutes: parseInt($('heartbeat_minutes').value, 10) || 30
   };
   fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     .then(function(r) { return r.json(); })
