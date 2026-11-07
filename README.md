@@ -1,5 +1,7 @@
 # 中转服务端（Go）
 
+源码：https://github.com/cpxjazz-dev/botkeep-relay
+
 收一条消息，按配置转发到钉钉自定义机器人或 QQ 官方机器人，附带一个网页配置界面。
 
 ## 为什么是 Go
