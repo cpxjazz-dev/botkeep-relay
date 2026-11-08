@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>项目 — cpxjazz × Alice</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+
+<nav class="nav">
+  <a class="brand" href="index.html"><span class="mini-avatar">🧑‍💻</span><span>cpxjazz</span></a>
+  <a class="item" href="index.html">首页</a>
+  <a class="item active" href="projects.html">项目</a>
+  <a class="item" href="photos.html">照片</a>
+  <a class="item" href="about.html">关于</a>
+</nav>
+
+<div class="wrap">
+  <h1 class="page-title rise d1">项目</h1>
+  <p class="page-sub rise d1">边学边做，代码都在 GitHub 上。</p>
+
+  <div class="bento">
+    <div class="card proj span7 rise d2">
+      <h3><a href="https://github.com/cpxjazz-dev/esp32-pir-template">ESP32-C3 红外感应模板</a></h3>
+      <p>HC-SR501 红外感应到人后，ESP32-C3 通过 Wi-Fi 把信号发出去。感应式触发，不轮询；阻塞式主循环，不用 async / Embassy；上报 UDP 和 TCP 两套都留着，一行切换。</p>
+      <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">no_std</span><span class="tag">smoltcp</span></p>
+      <p class="meta">esp-hal 1.1 / esp-radio 0.18 / smoltcp 0.13 · 已在 InstaBox 上 cargo check + 裸 build 通过</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/esp32-pir-template">github.com/cpxjazz-dev/esp32-pir-template</a></p>
+    </div>
+
+    <div class="card proj span5 rise d3">
+      <h3><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">smoltcp-http-client</a></h3>
+      <p>一个独立的 no_std HTTP / HTTPS 客户端，基于 raw smoltcp，传输层由 trait 注入，不依赖任何 ESP 包。HTTPS 用 embedded-tls + rustpki（纯 Rust），TLS 1.3。</p>
+      <p><span class="tag">Rust</span><span class="tag">no_std</span><span class="tag">smoltcp</span><span class="tag">embedded-tls</span></p>
+      <p class="meta">v0.1.0 · 四种配置 cargo check 全过 · TLS 版固件 733 KiB，占 1MB 分区 71.6%</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">github.com/cpxjazz-dev/smoltcp-http-client</a></p>
+    </div>
+
+    <div class="card proj span4 rise d4">
+      <h3><a href="https://github.com/cpxjazz-dev/stm32-blink-template">STM32 Blue Pill Blink 模板</a></h3>
+      <p>Blue Pill（STM32F103C8T6）+ 蓝色 ST-Link V2 兼容版，Embassy no_std，板载 LED（PC13，低电平亮）每 500ms 闪一次。STM32 也可以写 Rust，不必写 C。</p>
+      <p><span class="tag">Rust</span><span class="tag">STM32</span><span class="tag">Embassy</span></p>
+      <p class="meta">embassy-stm32 0.6.0 · 已在 InstaBox 上 cargo check 通过</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/stm32-blink-template">github.com/cpxjazz-dev/stm32-blink-template</a></p>
+    </div>
+
+    <div class="card proj span4 rise d5">
+      <h3><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">ESP no_std Crates 中文翻译（C3 专属）</a></h3>
+      <p>把 ESP Rust no_std 生态的官方文档翻成中文，只留 ESP32-C3 有关的部分，补全 C3 外设 API 表、异步专章，以及原来漏掉的 esp-nvs、embassy-net 等 crate。</p>
+      <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">文档翻译</span></p>
+      <p class="meta">1679 行 · v2 C3 专属查阅版</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">github.com/cpxjazz-dev/esp-nostd-crates-translation</a></p>
+    </div>
+
+    <div class="card proj span4 rise d6">
+      <h3><a href="https://github.com/cpxjazz-dev/botkeep-relay">Botkeep 中转服务</a></h3>
+      <p>一个轻量 Go 中转服务，跑在 Botkeep 免费机上。收一条 HTTP POST，按配置转发到钉钉或 QQ 官方机器人；带网页配置页、QQ 网关监听自动抓 openid、多接收方、发送记录、调用密钥、半小时一次运行状态心跳。只用 Go 标准库，零第三方依赖。本站就跑在它上面。</p>
+      <p><span class="tag">Go</span><span class="tag">Botkeep</span><span class="tag">QQ 机器人</span><span class="tag">钉钉</span></p>
+      <p class="meta">Go 1.27.1 · 编译后约 10MB，运行时内存约 15–45MB · 线上运行中</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/botkeep-relay">github.com/cpxjazz-dev/botkeep-relay</a></p>
+    </div>
+
+    <div class="card proj span7 rise d7">
+      <h3>MCP 起步骨架</h3>
+      <p>给自己的服务 API 搭的 MCP 服务器起步骨架：本地 stdio MCP（get_item_by_id、search_items_by_keyword），FastAPI 与 FastMCP 并排共用同一个 client。service_client.py 是唯一调 API 的地方，改真实接口只改它。</p>
+      <p><span class="tag">Python</span><span class="tag">MCP</span><span class="tag">FastAPI</span></p>
+      <p class="meta">MCP SDK 2.3.0 · 假后端端到端协议链路已验证 · 等真实服务接入</p>
+      <p class="link">本地项目，暂未公开</p>
+    </div>
+
+    <div class="card doing span5 rise d8">
+      <h3>正在进行</h3>
+      <ul>
+        <li>甲骨文免费机：新加坡区，等招行卡下来就注册抢 1 核 6GB</li>
+        <li>AstrBot：机器到手后部署，平台和模型还没定</li>
+        <li>减重 123 → 115 斤：饮食为主，每周三早上称一次</li>
+        <li>Rust 每周热点：每周一晚发 Instagram</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer class="rise d8">
+    <p>cpxjazz × Alice · 2026 · <a href="https://github.com/cpxjazz-dev">github.com/cpxjazz-dev</a></p>
+  </footer>
+</div>
+</body>
+</html>
