@@ -48,10 +48,28 @@
       <table id="calendar"></table>
     </div>
 
-    <div class="card status-card span8 rise d4">
+    <div class="card status-card span4 rise d4">
       <h3><span class="dot"></span>中转服务运行中</h3>
       <p>本站跑在 Botkeep 免费机上的 Go 中转服务里，<span class="num">24/7 常驻</span>，稳态内存约 <span class="num">12 MB</span>，半小时发一次运行状态心跳到 QQ。</p>
-      <p>中转站：<a class="link" href="https://rxs3yg.bot-keep.xyz/" style="color:var(--accent);text-decoration:none;font-weight:500">rxs3yg.bot-keep.xyz</a> · 配置页、发送记录、QQ openid 都在上面。</p>
+      <p>中转站：<a class="link" href="https://rxs3yg.bot-keep.xyz/" style="color:var(--accent);text-decoration:none;font-weight:500">rxs3yg.bot-keep.xyz</a></p>
+    </div>
+
+    <div class="card music-card span4 rise d5">
+      <h3>🎵 正在播放</h3>
+      <p class="song">SoundHelix Song 1</p>
+      <p class="artist">免版税电子乐 · 3:00 精选片段</p>
+      <div class="controls">
+        <button class="play-btn" id="play-btn" aria-label="播放/暂停">▶</button>
+        <div class="track">
+          <div class="progress" id="progress"><div class="fill" id="progress-fill"></div></div>
+          <div class="times"><span id="time-cur">0:00</span><span id="time-total">3:00</span></div>
+        </div>
+      </div>
+      <div class="vol">
+        <span>🔊</span>
+        <input type="range" id="vol" min="0" max="100" value="80" aria-label="音量">
+      </div>
+      <audio id="audio" src="music/soundhelix-1.mp3" preload="metadata"></audio>
     </div>
   </div>
 
@@ -97,5 +115,6 @@
 </div>
 
 <script src="clock.js"></script>
+<script src="player.js"></script>
 </body>
 </html>
