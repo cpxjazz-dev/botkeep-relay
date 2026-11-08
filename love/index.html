@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>给最爱的她 ❤</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="blob b1"></div>
+<div class="blob b2"></div>
+<div class="blob b3"></div>
+<div class="float-hearts" id="hearts"></div>
+<div class="twinkles" id="twinkles"></div>
+<div class="petals" id="petals"></div>
+
+<nav class="nav">
+  <a class="brand" href="/love/"><span class="mini-avatar">💗</span><span>给她</span></a>
+  <a class="item active" href="/love/">照片</a>
+  <a class="item" href="/blog/">技术博客</a>
+</nav>
+
+<div class="wrap">
+  <header class="hero rise d1">
+    <div class="eyebrow">For My Love</div>
+    <h1>给最爱的她</h1>
+    <p>生活里的每一个闪光时刻，都值得被好好收藏。</p>
+    <div class="hearts-line">💗 💖 💗</div>
+  </header>
+
+  <div class="love-note rise d2">
+    <p>你笑起来的样子，是我见过最好看的风景。</p>
+    <p>愿以后的每个日子，都像这些照片一样，亮堂堂、暖乎乎的。</p>
+    <p class="sign">—— cpxjazz · 2026 年 11 月</p>
+  </div>
+
+  <div class="music-card rise d3">
+    <button class="play-btn" id="play-btn" aria-label="播放/暂停">▶</button>
+    <div class="track">
+      <p class="song">SoundHelix Song 1</p>
+      <p class="artist">给她放一首歌 · 免版税电子乐</p>
+      <div class="progress" id="progress"><div class="fill" id="progress-fill"></div></div>
+      <div class="times"><span id="time-cur">0:00</span><span id="time-total">3:00</span></div>
+    </div>
+    <audio id="audio" src="music/soundhelix-1.mp3" preload="metadata"></audio>
+  </div>
+
+  <div class="polaroid-wall">
+    <div class="polaroid rise d2" style="--tilt:-2deg">
+      <img src="photos/wedding-dress.jpg" alt="粉色婚纱">
+      <span class="heart-badge">💗</span>
+      <p class="cap">粉色婚纱<small>婚纱照</small></p>
+    </div>
+    <div class="polaroid rise d3" style="--tilt:1.5deg">
+      <img src="photos/lidong-qipao.jpg" alt="立冬旗袍">
+      <span class="heart-badge">💗</span>
+      <p class="cap">立冬<small>旗袍 · 抱着玫瑰</small></p>
+    </div>
+    <div class="polaroid rise d4" style="--tilt:-1deg">
+      <img src="photos/kindergarten.jpg" alt="幼儿园毕业留念">
+      <span class="heart-badge">💗</span>
+      <p class="cap">幼儿园毕业留念<small>东干校幼儿园大（二）班</small></p>
+    </div>
+    <div class="polaroid rise d5" style="--tilt:2deg">
+      <img src="photos/wedding-trio.jpg" alt="婚礼三人合影">
+      <span class="heart-badge">💗</span>
+      <p class="cap">婚礼合影<small>和伴娘们</small></p>
+    </div>
+    <div class="polaroid rise d6" style="--tilt:-1.5deg">
+      <img src="photos/wedding-group.jpg" alt="婚礼姐妹合影">
+      <span class="heart-badge">💗</span>
+      <p class="cap">姐妹合影<small>婚礼 · 比心</small></p>
+    </div>
+    <div class="polaroid rise d7" style="--tilt:1deg">
+      <img src="photos/selfie-cat.jpg" alt="日常自拍">
+      <span class="heart-badge">💗</span>
+      <p class="cap">日常自拍<small>猫咪贴纸</small></p>
+    </div>
+  </div>
+
+  <footer class="rise d8">
+    <p>💗 cpxjazz × Alice · 2026 · <a href="/blog/">技术博客</a></p>
+  </footer>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" id="lb-close" aria-label="关闭">✕</button>
+  <button class="lb-nav lb-prev" id="lb-prev" aria-label="上一张">‹</button>
+  <button class="lb-nav lb-next" id="lb-next" aria-label="下一张">›</button>
+  <img id="lb-img" src="" alt="">
+  <p class="lb-cap" id="lb-cap"></p>
+</div>
+
+<script src="lightbox.js"></script>
+<script src="player.js"></script>
+<script>
+/* 飘心、闪星、花瓣：随机生成，营造流动感 */
+(function () {
+  var hearts = ['💗', '💖', '💓', '💕', '❤️'];
+  var hBox = document.getElementById('hearts');
+  for (var i = 0; i < 14; i++) {
+    var s = document.createElement('span');
+    s.textContent = hearts[i % hearts.length];
+    s.style.left = (Math.random() * 96) + 'vw';
+    s.style.fontSize = (14 + Math.random() * 18) + 'px';
+    s.style.animationDuration = (9 + Math.random() * 9) + 's';
+    s.style.animationDelay = (-Math.random() * 18) + 's';
+    hBox.appendChild(s);
+  }
+  var tBox = document.getElementById('twinkles');
+  for (var j = 0; j < 24; j++) {
+    var t = document.createElement('i');
+    if (Math.random() < 0.5) t.className = 'pink';
+    t.style.left = (Math.random() * 98) + 'vw';
+    t.style.top = (Math.random() * 90) + 'vh';
+    t.style.animationDuration = (1.6 + Math.random() * 2.4) + 's';
+    t.style.animationDelay = (-Math.random() * 4) + 's';
+    tBox.appendChild(t);
+  }
+  var petals = ['🌸', '🌺', '💮', '🌷'];
+  var pBox = document.getElementById('petals');
+  for (var k = 0; k < 12; k++) {
+    var p = document.createElement('span');
+    p.textContent = petals[k % petals.length];
+    p.style.left = (Math.random() * 96) + 'vw';
+    p.style.fontSize = (13 + Math.random() * 10) + 'px';
+    p.style.animationDuration = (11 + Math.random() * 9) + 's';
+    p.style.animationDelay = (-Math.random() * 20) + 's';
+    pBox.appendChild(p);
+  }
+})();
+</script>
+</body>
+</html>

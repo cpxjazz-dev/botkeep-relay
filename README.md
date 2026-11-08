@@ -42,10 +42,17 @@
 
 ## 博客（附带的小型静态站）
 
-`blog/` 是一份纯静态博客，介绍学习项目、链到各 GitHub 仓库。服务在 `/blog/` 下原样提供它；以后迁到 Cloudflare Pages 时直接把 `blog/` 目录推过去，不用改内容。
+`blog/` 是一份纯静态技术博客，介绍学习项目、链到各 GitHub 仓库。服务在 `/blog/` 下原样提供它；以后迁到 Cloudflare Pages 时直接把 `blog/` 目录推过去，不用改内容。
 
 - 线上：https://rxs3yg.bot-keep.xyz/blog/
 - 加新文章：往 `blog/` 里加 HTML 文件，重新部署即可（改 main.go 不需要，静态文件嵌在二进制里，重启后生效）。
+
+## 给她的（附带的浪漫照片站）
+
+`love/` 是给女友的独立小站：生活照片墙（拍立得风格）+ 飘心、闪星、花瓣流式特效 + 流光标题 + 音乐播放器。服务在 `/love/` 下原样提供它，同样是纯静态，迁 Cloudflare Pages 时直接推 `love/` 目录。
+
+- 线上：https://rxs3yg.bot-keep.xyz/love/
+- 加新照片：把图放进 `love/photos/`，在 `love/index.html` 里加一张拍立得卡，重新部署即可。
 
 ## 每小时运行状态推送
 

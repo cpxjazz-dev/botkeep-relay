@@ -74,6 +74,8 @@ body {
 }
 .nav a.item:hover { color: var(--accent); background: rgba(47, 158, 143, .08); }
 .nav a.item.active { background: var(--accent); color: #fff; font-weight: 600; }
+.nav a.item.love { color: #e56b8c; font-weight: 600; }
+.nav a.item.love:hover { background: rgba(229, 107, 140, .12); color: #d14e72; }
 @media (max-width: 560px) {
   .nav .brand span { display: none; }
   .nav a.item { padding: 6px 10px; font-size: 13px; }

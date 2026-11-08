@@ -29,6 +29,9 @@ var indexHTML string
 //go:embed blog
 var blogFS embed.FS
 
+//go:embed love
+var loveFS embed.FS
+
 const configPath = "config.json"
 
 // QQRecipient 是 QQ 的一个接收方：一个私聊用户或一个群。
@@ -673,6 +676,10 @@ func main() {
 	// 以后迁到 Cloudflare Pages 时直接把 blog/ 目录推过去，不用改内容。
 	if blogSub, err := fs.Sub(blogFS, "blog"); err == nil {
 		mux.Handle("/blog/", http.StripPrefix("/blog/", http.FileServer(http.FS(blogSub))))
+	}
+	// 给她的：同样是纯静态页面，嵌在二进制里，/love/ 下按 love/ 目录 serving。
+	if loveSub, err := fs.Sub(loveFS, "love"); err == nil {
+		mux.Handle("/love/", http.StripPrefix("/love/", http.FileServer(http.FS(loveSub))))
 	}
 	mux.HandleFunc("/api/openids", handleOpenIDs)
 	mux.HandleFunc("/api/history", handleHistory)
