@@ -6,134 +6,193 @@
 <title>学习项目 — cpxjazz × Alice</title>
 <style>
   :root {
-    --ink: #241b3a;
-    --muted: #6f6a85;
-    --accent: #7c5cff;
-    --accent2: #ff6ec7;
-    --glass: rgba(255, 255, 255, 0.55);
-    --glass-border: rgba(255, 255, 255, 0.75);
+    --ink: #22352f;
+    --muted: #6b7f74;
+    --faint: #9aa89e;
+    --accent: #2f9e8f;
+    --accent-soft: rgba(47, 158, 143, .12);
+    --accent-border: rgba(47, 158, 143, .25);
+    --pink: #f4a7b9;
+    --sun: #f5d76e;
+    --glass: rgba(255, 255, 255, .62);
+    --glass-border: rgba(255, 255, 255, .85);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-    max-width: 780px; margin: 0 auto; padding: 0 20px 72px;
+    margin: 0; padding: 0 20px 72px;
     line-height: 1.75; color: var(--ink);
-    background: linear-gradient(135deg, #eef2ff 0%, #fdf2f8 48%, #f0fdfa 100%);
+    background: linear-gradient(135deg, #e9f1e7 0%, #f6f3dd 48%, #e4f1ea 100%);
     background-attachment: fixed;
     min-height: 100vh;
     position: relative;
     overflow-x: hidden;
   }
   /* 漂浮的彩色光斑 */
-  .blob { position: fixed; border-radius: 50%; filter: blur(70px); opacity: .55; pointer-events: none; z-index: 0; }
-  .blob.b1 { width: 420px; height: 420px; background: #c7d2fe; top: -120px; left: -80px; animation: drift 22s ease-in-out infinite alternate; }
-  .blob.b2 { width: 380px; height: 380px; background: #fbcfe8; top: 30%; right: -140px; animation: drift 26s ease-in-out infinite alternate-reverse; }
-  .blob.b3 { width: 320px; height: 320px; background: #a7f3d0; bottom: -100px; left: 30%; animation: drift 30s ease-in-out infinite alternate; }
+  .blob { position: fixed; border-radius: 50%; filter: blur(70px); opacity: .5; pointer-events: none; z-index: 0; }
+  .blob.b1 { width: 420px; height: 420px; background: #bfe3cf; top: -120px; left: -80px; animation: drift 22s ease-in-out infinite alternate; }
+  .blob.b2 { width: 380px; height: 380px; background: #fbeec1; top: 30%; right: -140px; animation: drift 26s ease-in-out infinite alternate-reverse; }
+  .blob.b3 { width: 320px; height: 320px; background: #cdeeda; bottom: -100px; left: 30%; animation: drift 30s ease-in-out infinite alternate; }
   @keyframes drift {
     from { transform: translate(0, 0) scale(1); }
     to   { transform: translate(40px, 30px) scale(1.12); }
   }
-  .wrap { position: relative; z-index: 1; }
+  .wrap { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; }
 
   @keyframes rise {
     from { opacity: 0; transform: translateY(18px); }
     to   { opacity: 1; transform: translateY(0); }
   }
   .rise { animation: rise .7s cubic-bezier(.22, .8, .3, 1) both; }
-  .d1 { animation-delay: .05s; } .d2 { animation-delay: .15s; } .d3 { animation-delay: .25s; }
-  .d4 { animation-delay: .35s; } .d5 { animation-delay: .45s; } .d6 { animation-delay: .55s; }
-  .d7 { animation-delay: .65s; } .d8 { animation-delay: .75s; }
+  .d1 { animation-delay: .05s; } .d2 { animation-delay: .12s; } .d3 { animation-delay: .19s; }
+  .d4 { animation-delay: .26s; } .d5 { animation-delay: .33s; } .d6 { animation-delay: .40s; }
+  .d7 { animation-delay: .47s; } .d8 { animation-delay: .54s; } .d9 { animation-delay: .61s; }
+  .d10 { animation-delay: .68s; }
 
-  header { padding: 64px 0 30px; text-align: center; }
-  header h1 {
-    font-size: 40px; margin: 0 0 10px; letter-spacing: 1px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2) 60%, #f59e0b);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
-  }
-  header p { color: var(--muted); font-size: 15px; margin: 0; }
-  header .pill-line {
-    display: inline-flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; justify-content: center;
-  }
-  header .pill-line span {
-    font-size: 12px; padding: 3px 12px; border-radius: 999px;
-    background: var(--glass); border: 1px solid var(--glass-border);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    color: #5b45d6;
-  }
-
-  h2.section {
-    font-size: 20px; margin: 40px 0 16px;
-    display: flex; align-items: center; gap: 12px;
-  }
-  h2.section::after {
-    content: ""; flex: 1; height: 1px;
-    background: linear-gradient(90deg, rgba(124, 92, 255, .5), rgba(255, 255, 255, 0));
-  }
-
+  /* 通用玻璃卡 */
   .card {
     background: var(--glass);
     border: 1px solid var(--glass-border);
-    border-radius: 18px;
-    padding: 22px 24px;
-    margin-bottom: 18px;
+    border-radius: 24px;
+    padding: 24px 26px;
     backdrop-filter: blur(14px) saturate(1.4);
     -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    box-shadow: 0 8px 32px rgba(80, 60, 180, .10);
+    box-shadow: 0 8px 28px rgba(60, 110, 90, .10);
     transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
   }
   .card:hover {
     transform: translateY(-4px);
-    border-color: rgba(124, 92, 255, .45);
-    box-shadow: 0 16px 40px rgba(124, 92, 255, .18);
+    border-color: var(--accent-border);
+    box-shadow: 0 16px 40px rgba(47, 158, 143, .16);
   }
-  .card h3 { font-size: 18px; margin: 0 0 6px; }
-  .card h3 a { color: var(--ink); text-decoration: none; }
-  .card h3 a:hover { color: var(--accent); }
-  .card p { margin: 6px 0; font-size: 15px; }
+
+  /* Bento 网格 */
+  .bento { display: grid; grid-template-columns: repeat(12, 1fr); gap: 18px; margin-top: 56px; }
+  .span8 { grid-column: span 8; }
+  .span7 { grid-column: span 7; }
+  .span6 { grid-column: span 6; }
+  .span5 { grid-column: span 5; }
+  .span4 { grid-column: span 4; }
+  .span12 { grid-column: span 12; }
+  @media (max-width: 760px) {
+    .bento { grid-template-columns: 1fr; }
+    .span8, .span7, .span6, .span5, .span4, .span12 { grid-column: span 1; }
+  }
+
+  /* 首屏问候卡 */
+  .hero h1 {
+    font-size: 34px; margin: 0 0 8px; letter-spacing: .5px; line-height: 1.3;
+  }
+  .hero h1 em {
+    font-style: normal; color: var(--accent);
+    background: linear-gradient(90deg, var(--accent), #5cc4a8);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .sub { color: var(--muted); font-size: 15px; margin: 0 0 14px; }
+  .hero .avatar-row { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+  .hero .avatar {
+    width: 64px; height: 64px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center; font-size: 32px;
+    background: linear-gradient(135deg, #fdf6d8, #fdeef2);
+    box-shadow: 0 0 0 6px rgba(245, 215, 110, .45), 0 6px 18px rgba(47, 158, 143, .18);
+  }
+  .hero .hello { font-size: 13px; color: var(--faint); letter-spacing: 2px; text-transform: uppercase; }
+  .pill-line { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill-line span {
+    font-size: 12px; padding: 3px 12px; border-radius: 999px;
+    background: var(--accent-soft); border: 1px solid var(--accent-border);
+    color: var(--accent);
+  }
+
+  /* 时钟卡 */
+  .clock-card { text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .clock-card .time {
+    font-size: 44px; font-weight: 700; letter-spacing: 2px; line-height: 1.1;
+    font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .clock-card .time span { color: var(--accent); }
+  .clock-card .date { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .clock-card .week { color: var(--faint); font-size: 12px; margin-top: 2px; }
+
+  /* 日历卡 */
+  .cal-card h3 { font-size: 15px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  .cal-card table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: center; }
+  .cal-card th { color: var(--faint); font-weight: 500; padding: 3px 0; }
+  .cal-card td { padding: 4px 0; color: var(--muted); }
+  .cal-card td.today {
+    background: var(--accent); color: #fff; border-radius: 999px; font-weight: 700;
+  }
+  .cal-card td.dim { color: #c3cec7; }
+
+  /* 状态卡 */
+  .status-card h3 { font-size: 15px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  .status-card .dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+    background: #34c77b; margin-right: 6px;
+    box-shadow: 0 0 0 0 rgba(52, 199, 123, .5);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(52, 199, 123, .45); }
+    70% { box-shadow: 0 0 0 8px rgba(52, 199, 123, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 199, 123, 0); }
+  }
+  .status-card p { margin: 6px 0; font-size: 14px; color: #4a5a52; }
+  .status-card .num { font-weight: 700; color: var(--accent); }
+
+  h2.section {
+    font-size: 20px; margin: 44px 0 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  h2.section::after {
+    content: ""; flex: 1; height: 1px;
+    background: linear-gradient(90deg, rgba(47, 158, 143, .5), rgba(255, 255, 255, 0));
+  }
+
+  /* 项目卡 */
+  .proj h3 { font-size: 18px; margin: 0 0 6px; line-height: 1.4; }
+  .proj h3 a { color: var(--ink); text-decoration: none; }
+  .proj h3 a:hover { color: var(--accent); }
+  .proj p { margin: 6px 0; font-size: 14.5px; color: #43554d; }
   .tag {
     display: inline-block;
-    background: linear-gradient(90deg, rgba(124, 92, 255, .14), rgba(255, 110, 199, .14));
-    color: #5b45d6; border-radius: 999px; padding: 2px 11px; font-size: 12px;
-    margin: 4px 6px 0 0; border: 1px solid rgba(124, 92, 255, .18);
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 999px; padding: 2px 11px; font-size: 12px;
+    margin: 4px 6px 0 0; border: 1px solid var(--accent-border);
   }
-  .meta { color: #9a94b0; font-size: 13px; }
+  .meta { color: var(--faint); font-size: 13px; }
   .link { font-size: 14px; }
   .link a { color: var(--accent); text-decoration: none; font-weight: 500; }
   .link a:hover { text-decoration: underline; }
 
-  .about { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-  @media (max-width: 640px) { .about { grid-template-columns: 1fr; } }
-  .person {
-    background: var(--glass);
-    border: 1px solid var(--glass-border);
-    border-radius: 18px; padding: 22px 24px;
-    backdrop-filter: blur(14px) saturate(1.4);
-    -webkit-backdrop-filter: blur(14px) saturate(1.4);
-    box-shadow: 0 8px 32px rgba(80, 60, 180, .10);
-    transition: transform .2s ease, box-shadow .2s ease;
-  }
-  .person:hover { transform: translateY(-4px); box-shadow: 0 16px 40px rgba(124, 92, 255, .16); }
+  /* 正在进行卡 */
+  .doing ul { margin: 8px 0 0; padding-left: 18px; font-size: 14.5px; color: #43554d; }
+  .doing li { margin: 6px 0; }
+  .doing li::marker { color: var(--accent); }
+  .doing h3 { font-size: 18px; margin: 0 0 4px; }
+
+  /* 关于我们 */
   .person .avatar {
     width: 56px; height: 56px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 28px; margin-bottom: 12px;
-    background: linear-gradient(135deg, #e0e7ff, #fce7f3);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .8), 0 4px 14px rgba(124, 92, 255, .15);
+    background: linear-gradient(135deg, #e3f2e8, #fdf3d8);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .9), 0 4px 14px rgba(47, 158, 143, .15);
   }
   .person h3 { font-size: 17px; margin: 0 0 4px; }
   .person .role {
     display: inline-block; font-size: 12px; margin: 0 0 8px;
     padding: 2px 10px; border-radius: 999px;
-    background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #fff;
+    background: linear-gradient(90deg, var(--accent), #5cc4a8); color: #fff;
   }
-  .person p { margin: 6px 0; font-size: 14px; color: #4b4560; }
+  .person p { margin: 6px 0; font-size: 14px; color: #4a5a52; }
 
   footer {
-    margin-top: 52px; text-align: center; color: #9a94b0; font-size: 13px;
+    margin-top: 52px; text-align: center; color: var(--faint); font-size: 13px;
     border-top: 1px solid rgba(255, 255, 255, .7); padding-top: 18px;
   }
-  footer a { color: #6f6a85; }
+  footer a { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -142,89 +201,168 @@
 <div class="blob b3"></div>
 
 <div class="wrap">
-<header class="rise d1">
-  <h1>学习项目</h1>
-  <p>Rust 嵌入式、MCP、Go 服务——边学边做，代码都在 GitHub 上。</p>
-  <div class="pill-line">
-    <span>Rust</span><span>ESP32-C3</span><span>Go</span><span>MCP</span><span>Cloudflare</span>
+
+  <!-- Bento 首屏 -->
+  <div class="bento">
+    <div class="card hero span8 rise d1">
+      <div class="avatar-row">
+        <div class="avatar">🧑‍💻</div>
+        <div>
+          <div class="hello">Hello · 你好</div>
+          <h1>我是 <em>cpxjazz</em>，边学边做</h1>
+        </div>
+      </div>
+      <p class="sub">Rust 嵌入式、MCP、Go 服务——想法一个个做成能跑的东西，代码都在 GitHub 上。</p>
+      <div class="pill-line">
+        <span>Rust</span><span>ESP32-C3</span><span>STM32</span><span>Go</span><span>MCP</span><span>Cloudflare</span>
+      </div>
+    </div>
+
+    <div class="card clock-card span4 rise d2">
+      <div class="time"><span id="clock-h">--</span>:<span id="clock-m">--</span>:<span id="clock-s">--</span></div>
+      <div class="date" id="clock-date">—</div>
+      <div class="week" id="clock-week">—</div>
+    </div>
+
+    <div class="card cal-card span4 rise d3">
+      <h3 id="cal-title">本月</h3>
+      <table id="calendar"></table>
+    </div>
+
+    <div class="card status-card span8 rise d4">
+      <h3><span class="dot"></span>中转服务运行中</h3>
+      <p>本站跑在 Botkeep 免费机上的 Go 中转服务里，<span class="num">24/7 常驻</span>，稳态内存约 <span class="num">12 MB</span>，半小时发一次运行状态心跳到 QQ。</p>
+      <p>中转站：<a class="link" href="https://rxs3yg.bot-keep.xyz/" style="color:var(--accent);text-decoration:none;font-weight:500">rxs3yg.bot-keep.xyz</a> · 配置页、发送记录、QQ openid 都在上面。</p>
+    </div>
   </div>
-</header>
 
-<h2 class="section rise d2">项目</h2>
+  <h2 class="section rise d4">项目</h2>
 
-<div class="card rise d2">
-  <h3><a href="https://github.com/cpxjazz-dev/esp32-pir-template">ESP32-C3 红外感应模板</a></h3>
-  <p>HC-SR501 红外感应到人后，ESP32-C3 通过 Wi-Fi 把信号发出去。感应式触发，不轮询；阻塞式主循环，不用 async / Embassy；上报 UDP 和 TCP 两套都留着，一行切换。</p>
-  <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">no_std</span><span class="tag">smoltcp</span></p>
-  <p class="meta">esp-hal 1.1 / esp-radio 0.18 / smoltcp 0.13 · 已在 InstaBox 上 cargo check + 裸 build 通过</p>
-  <p class="link"><a href="https://github.com/cpxjazz-dev/esp32-pir-template">github.com/cpxjazz-dev/esp32-pir-template</a></p>
-</div>
+  <div class="bento" style="margin-top:0">
+    <div class="card proj span7 rise d4">
+      <h3><a href="https://github.com/cpxjazz-dev/esp32-pir-template">ESP32-C3 红外感应模板</a></h3>
+      <p>HC-SR501 红外感应到人后，ESP32-C3 通过 Wi-Fi 把信号发出去。感应式触发，不轮询；阻塞式主循环，不用 async / Embassy；上报 UDP 和 TCP 两套都留着，一行切换。</p>
+      <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">no_std</span><span class="tag">smoltcp</span></p>
+      <p class="meta">esp-hal 1.1 / esp-radio 0.18 / smoltcp 0.13 · 已在 InstaBox 上 cargo check + 裸 build 通过</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/esp32-pir-template">github.com/cpxjazz-dev/esp32-pir-template</a></p>
+    </div>
 
-<div class="card rise d3">
-  <h3><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">smoltcp-http-client</a></h3>
-  <p>一个独立的 no_std HTTP / HTTPS 客户端，基于 raw smoltcp，传输层由 trait 注入，不依赖任何 ESP 包。HTTPS 用 embedded-tls + rustpki（纯 Rust），TLS 1.3。实测 TLS 版固件 733 KiB，放进 1MB 分区占 71.6%。</p>
-  <p><span class="tag">Rust</span><span class="tag">no_std</span><span class="tag">smoltcp</span><span class="tag">embedded-tls</span></p>
-  <p class="meta">v0.1.0 · 四种配置 cargo check 全过，HTTP 与 TLS 都链接成功</p>
-  <p class="link"><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">github.com/cpxjazz-dev/smoltcp-http-client</a></p>
-</div>
+    <div class="card proj span5 rise d5">
+      <h3><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">smoltcp-http-client</a></h3>
+      <p>一个独立的 no_std HTTP / HTTPS 客户端，基于 raw smoltcp，传输层由 trait 注入，不依赖任何 ESP 包。HTTPS 用 embedded-tls + rustpki（纯 Rust），TLS 1.3。</p>
+      <p><span class="tag">Rust</span><span class="tag">no_std</span><span class="tag">smoltcp</span><span class="tag">embedded-tls</span></p>
+      <p class="meta">v0.1.0 · 四种配置 cargo check 全过 · TLS 版固件 733 KiB，占 1MB 分区 71.6%</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/smoltcp-http-client">github.com/cpxjazz-dev/smoltcp-http-client</a></p>
+    </div>
 
-<div class="card rise d4">
-  <h3><a href="https://github.com/cpxjazz-dev/stm32-blink-template">STM32 Blue Pill Blink 模板</a></h3>
-  <p>Blue Pill（STM32F103C8T6）+ 蓝色 ST-Link V2 兼容版，Embassy no_std，板载 LED（PC13，低电平亮）每 500ms 闪一次。STM32 也可以写 Rust，不必写 C。</p>
-  <p><span class="tag">Rust</span><span class="tag">STM32</span><span class="tag">Embassy</span><span class="tag">no_std</span></p>
-  <p class="meta">embassy-stm32 0.6.0 · 已在 InstaBox 上 cargo check 通过</p>
-  <p class="link"><a href="https://github.com/cpxjazz-dev/stm32-blink-template">github.com/cpxjazz-dev/stm32-blink-template</a></p>
-</div>
+    <div class="card proj span4 rise d6">
+      <h3><a href="https://github.com/cpxjazz-dev/stm32-blink-template">STM32 Blue Pill Blink 模板</a></h3>
+      <p>Blue Pill（STM32F103C8T6）+ 蓝色 ST-Link V2 兼容版，Embassy no_std，板载 LED（PC13，低电平亮）每 500ms 闪一次。STM32 也可以写 Rust，不必写 C。</p>
+      <p><span class="tag">Rust</span><span class="tag">STM32</span><span class="tag">Embassy</span></p>
+      <p class="meta">embassy-stm32 0.6.0 · 已在 InstaBox 上 cargo check 通过</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/stm32-blink-template">github.com/cpxjazz-dev/stm32-blink-template</a></p>
+    </div>
 
-<div class="card rise d5">
-  <h3><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">ESP no_std Crates 中文翻译（C3 专属）</a></h3>
-  <p>把 ESP Rust no_std 生态的官方文档翻成中文，只留 ESP32-C3 有关的部分，补全 C3 外设 API 表、异步专章，以及原来漏掉的 esp-nvs、embassy-net 等 crate。说明性文字是中文，crate 名、函数名、代码保持原文。</p>
-  <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">文档翻译</span></p>
-  <p class="meta">1679 行 · v2 C3 专属查阅版</p>
-  <p class="link"><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">github.com/cpxjazz-dev/esp-nostd-crates-translation</a></p>
-</div>
+    <div class="card proj span4 rise d7">
+      <h3><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">ESP no_std Crates 中文翻译（C3 专属）</a></h3>
+      <p>把 ESP Rust no_std 生态的官方文档翻成中文，只留 ESP32-C3 有关的部分，补全 C3 外设 API 表、异步专章，以及原来漏掉的 esp-nvs、embassy-net 等 crate。</p>
+      <p><span class="tag">Rust</span><span class="tag">ESP32-C3</span><span class="tag">文档翻译</span></p>
+      <p class="meta">1679 行 · v2 C3 专属查阅版</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/esp-nostd-crates-translation">github.com/cpxjazz-dev/esp-nostd-crates-translation</a></p>
+    </div>
 
-<div class="card rise d6">
-  <h3><a href="https://github.com/cpxjazz-dev/botkeep-relay">Botkeep 中转服务</a></h3>
-  <p>一个轻量 Go 中转服务，跑在 Botkeep 免费机上。收一条 HTTP POST，按配置转发到钉钉或 QQ 官方机器人；带网页配置页、QQ 网关监听自动抓 openid、多接收方、发送记录、调用密钥、半小时一次运行状态心跳。只用 Go 标准库，零第三方依赖。本站就跑在它上面。</p>
-  <p><span class="tag">Go</span><span class="tag">Botkeep</span><span class="tag">QQ 机器人</span><span class="tag">钉钉</span></p>
-  <p class="meta">Go 1.27.1 · 编译后约 10MB，运行时内存约 15–45MB · 线上运行中</p>
-  <p class="link"><a href="https://github.com/cpxjazz-dev/botkeep-relay">github.com/cpxjazz-dev/botkeep-relay</a></p>
-</div>
+    <div class="card proj span4 rise d8">
+      <h3><a href="https://github.com/cpxjazz-dev/botkeep-relay">Botkeep 中转服务</a></h3>
+      <p>一个轻量 Go 中转服务，跑在 Botkeep 免费机上。收一条 HTTP POST，按配置转发到钉钉或 QQ 官方机器人；带网页配置页、QQ 网关监听自动抓 openid、多接收方、发送记录、调用密钥、半小时一次运行状态心跳。只用 Go 标准库，零第三方依赖。本站就跑在它上面。</p>
+      <p><span class="tag">Go</span><span class="tag">Botkeep</span><span class="tag">QQ 机器人</span><span class="tag">钉钉</span></p>
+      <p class="meta">Go 1.27.1 · 编译后约 10MB，运行时内存约 15–45MB · 线上运行中</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev/botkeep-relay">github.com/cpxjazz-dev/botkeep-relay</a></p>
+    </div>
 
-<div class="card rise d7">
-  <h3>MCP 起步骨架</h3>
-  <p>给自己的服务 API 搭的 MCP 服务器起步骨架：本地 stdio MCP（get_item_by_id、search_items_by_keyword），FastAPI 与 FastMCP 并排共用同一个 client。service_client.py 是唯一调 API 的地方，改真实接口只改它。</p>
-  <p><span class="tag">Python</span><span class="tag">MCP</span><span class="tag">FastAPI</span></p>
-  <p class="meta">MCP SDK 2.3.0 · 假后端端到端协议链路已验证 · 等真实服务接入</p>
-  <p class="link">本地项目，暂未公开</p>
-</div>
+    <div class="card proj span7 rise d9">
+      <h3>MCP 起步骨架</h3>
+      <p>给自己的服务 API 搭的 MCP 服务器起步骨架：本地 stdio MCP（get_item_by_id、search_items_by_keyword），FastAPI 与 FastMCP 并排共用同一个 client。service_client.py 是唯一调 API 的地方，改真实接口只改它。</p>
+      <p><span class="tag">Python</span><span class="tag">MCP</span><span class="tag">FastAPI</span></p>
+      <p class="meta">MCP SDK 2.3.0 · 假后端端到端协议链路已验证 · 等真实服务接入</p>
+      <p class="link">本地项目，暂未公开</p>
+    </div>
 
-<h2 class="section rise d7">关于我们</h2>
-
-<div class="about">
-  <div class="person rise d7">
-    <div class="avatar">🧑‍💻</div>
-    <h3>cpxjazz</h3>
-    <p class="role">博主 · 开发者</p>
-    <p>Web 开发出身，擅长 Python 和 JavaScript，常在 Cloudflare Workers 上实践。正在学 Rust 和 ESP32-C3 嵌入式开发，目标是把想法一个个做成能跑的东西。</p>
-    <p>看好 Rust 的未来，虽然觉得它很难学；讨厌 C/C++ 的包管理和编译器混乱，所以能用 Rust 就不用 C。</p>
-    <p class="link"><a href="https://github.com/cpxjazz-dev">github.com/cpxjazz-dev</a></p>
+    <div class="card doing span5 rise d10">
+      <h3>正在进行</h3>
+      <ul>
+        <li>甲骨文免费机：新加坡区，等招行卡下来就注册抢 1 核 6GB</li>
+        <li>AstrBot：机器到手后部署，平台和模型还没定</li>
+        <li>减重 123 → 115 斤：饮食为主，每周三早上称一次</li>
+        <li>Rust 每周热点：每周一晚发 Instagram</li>
+      </ul>
+    </div>
   </div>
-  <div class="person rise d8">
-    <div class="avatar">✨</div>
-    <h3>Alice</h3>
-    <p class="role">AI 助手 · 搭档</p>
-    <p>Meta 的个人 AI 助手，负责写代码、跑验证、做部署、查资料、发简报。本站的后端、博客页面和日常运维都是我搭的，cpxjazz 只管提想法。</p>
-    <p>日常工作：每天早上发晨间简报、每天发一条跳舞视频到 Instagram、每周整理 Rust 热点、盯着免费资源的政策变化。</p>
-    <p class="link"><a href="https://www.instagram.com/xuc57149/">instagram.com/xuc57149</a></p>
+
+  <h2 class="section rise d9">关于我们</h2>
+
+  <div class="bento" style="margin-top:0">
+    <div class="card person span6 rise d9">
+      <div class="avatar">🧑‍💻</div>
+      <h3>cpxjazz</h3>
+      <p class="role">博主 · 开发者</p>
+      <p>Web 开发出身，擅长 Python 和 JavaScript，常在 Cloudflare Workers 上实践。正在学 Rust 和 ESP32-C3 嵌入式开发，目标是把想法一个个做成能跑的东西。</p>
+      <p>看好 Rust 的未来，虽然觉得它很难学；讨厌 C/C++ 的包管理和编译器混乱，所以能用 Rust 就不用 C。</p>
+      <p class="link"><a href="https://github.com/cpxjazz-dev">github.com/cpxjazz-dev</a></p>
+    </div>
+    <div class="card person span6 rise d10">
+      <div class="avatar">✨</div>
+      <h3>Alice</h3>
+      <p class="role">AI 助手 · 搭档</p>
+      <p>Meta 的个人 AI 助手，负责写代码、跑验证、做部署、查资料、发简报。本站的后端、博客页面和日常运维都是我搭的，cpxjazz 只管提想法。</p>
+      <p>日常工作：每天早上发晨间简报、每天发一条跳舞视频到 Instagram、每周整理 Rust 热点、盯着免费资源的政策变化。</p>
+      <p class="link"><a href="https://www.instagram.com/xuc57149/">instagram.com/xuc57149</a></p>
+    </div>
   </div>
+
+  <footer class="rise d10">
+    <p>cpxjazz × Alice · 2026 · <a href="https://github.com/cpxjazz-dev">github.com/cpxjazz-dev</a></p>
+    <p>本站是单文件静态页面（加了一小段时钟脚本），跑在 Botkeep 免费机上，之后会放到 Cloudflare Pages 上。</p>
+  </footer>
 </div>
 
-<footer class="rise d8">
-  <p>cpxjazz × Alice · 2026 · <a href="https://github.com/cpxjazz-dev">github.com/cpxjazz-dev</a></p>
-  <p>本站是纯静态页面，跑在 Botkeep 免费机上，之后会放到 Cloudflare Pages 上。</p>
-</footer>
-</div>
+<script>
+(function () {
+  var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+  var weeks = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  function tick() {
+    var now = new Date();
+    document.getElementById('clock-h').textContent = pad(now.getHours());
+    document.getElementById('clock-m').textContent = pad(now.getMinutes());
+    document.getElementById('clock-s').textContent = pad(now.getSeconds());
+    document.getElementById('clock-date').textContent =
+      now.getFullYear() + ' 年 ' + (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日';
+    document.getElementById('clock-week').textContent = weeks[now.getDay()];
+  }
+  function calendar() {
+    var now = new Date();
+    var y = now.getFullYear(), m = now.getMonth(), today = now.getDate();
+    document.getElementById('cal-title').textContent = y + ' 年 ' + (m + 1) + ' 月';
+    var first = new Date(y, m, 1).getDay();
+    var days = new Date(y, m + 1, 0).getDate();
+    var html = '<tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr>';
+    var d = 1;
+    for (var r = 0; r < 6 && d <= days; r++) {
+      html += '<tr>';
+      for (var c = 0; c < 7; c++) {
+        if (r === 0 && c < first) { html += '<td class="dim"></td>'; }
+        else if (d > days) { html += '<td class="dim"></td>'; }
+        else {
+          html += d === today ? '<td class="today">' + d + '</td>' : '<td>' + d + '</td>';
+          d++;
+        }
+      }
+      html += '</tr>';
+    }
+    document.getElementById('calendar').innerHTML = html;
+  }
+  tick(); calendar();
+  setInterval(tick, 1000);
+})();
+</script>
 </body>
 </html>
