@@ -665,8 +665,11 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	loadEnvFile(".env.local")
 	loadConfig()
 	loadHistory()
+	db = initDB()
+	s3cfg = loadS3Config()
 	startQQListener()
 	startHeartbeat()
 	mux := http.NewServeMux()
@@ -677,10 +680,20 @@ func main() {
 	if blogSub, err := fs.Sub(blogFS, "blog"); err == nil {
 		mux.Handle("/blog/", http.StripPrefix("/blog/", http.FileServer(http.FS(blogSub))))
 	}
-	// 给她的：同样是纯静态页面，嵌在二进制里，/love/ 下按 love/ 目录 serving。
+	// 给她的：静态页面 + 账户/上传接口。页面在 /love/ 下按 love/ 目录 serving，
+	// 账户数据进 Neon Postgres，上传的图片进 Neon Object Storage。
 	if loveSub, err := fs.Sub(loveFS, "love"); err == nil {
 		mux.Handle("/love/", http.StripPrefix("/love/", http.FileServer(http.FS(loveSub))))
 	}
+	mux.HandleFunc("/love/api/register", handleLoveRegister)
+	mux.HandleFunc("/love/api/login", handleLoveLogin)
+	mux.HandleFunc("/love/api/logout", handleLoveLogout)
+	mux.HandleFunc("/love/api/me", handleLoveMe)
+	mux.HandleFunc("/love/api/password", handleLovePassword)
+	mux.HandleFunc("/love/api/prefs", handleLovePrefs)
+	mux.HandleFunc("/love/api/upload", handleLoveUpload)
+	mux.HandleFunc("/love/api/photos", handleLovePhotos)
+	mux.HandleFunc("/love/api/users", handleLoveUsers)
 	mux.HandleFunc("/api/openids", handleOpenIDs)
 	mux.HandleFunc("/api/history", handleHistory)
 	mux.HandleFunc("/api/config", func(w http.ResponseWriter, r *http.Request) {

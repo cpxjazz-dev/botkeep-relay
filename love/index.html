@@ -17,7 +17,7 @@
 <nav class="nav">
   <a class="brand" href="/love/"><span class="mini-avatar">💗</span><span>给她</span></a>
   <a class="item active" href="/love/">照片</a>
-  <a class="item" href="/blog/">技术博客</a>
+  <button class="item nav-account" id="nav-account" type="button">登录</button>
 </nav>
 
 <div class="wrap">
@@ -45,41 +45,111 @@
     <audio id="audio" src="music/soundhelix-1.mp3" preload="auto" autoplay></audio>
   </div>
 
-  <div class="polaroid-wall">
-    <div class="polaroid rise d2" style="--tilt:-2deg">
-      <img src="photos/wedding-dress.jpg" alt="粉色婚纱">
-      <span class="heart-badge">💗</span>
-      <p class="cap">粉色婚纱<small>婚纱照</small></p>
+  <!-- 账户：登录 / 注册 / 上传 / 展示效果 / 管理员 -->
+  <section class="account-card rise d4" id="account-card">
+    <!-- 未登录 -->
+    <div id="auth-out">
+      <h3>💗 我的账户</h3>
+      <p class="hint">登录后可以上传照片、选照片的展示效果。第一次来先注册一个账户。</p>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="tab-login" type="button">登录</button>
+        <button class="auth-tab" id="tab-register" type="button">注册</button>
+      </div>
+      <form id="form-login" class="auth-form" autocomplete="off">
+        <input name="username" type="text" placeholder="用户名" required minlength="3" maxlength="20">
+        <input name="password" type="password" placeholder="密码" required minlength="6">
+        <button type="submit">登录</button>
+      </form>
+      <form id="form-register" class="auth-form hidden" autocomplete="off">
+        <input name="username" type="text" placeholder="用户名（3–20 位，字母/数字/下划线）" required minlength="3" maxlength="20">
+        <input name="display_name" type="text" placeholder="昵称（可空，默认同用户名）" maxlength="30">
+        <input name="password" type="password" placeholder="密码（至少 6 位）" required minlength="6">
+        <button type="submit">注册</button>
+      </form>
+      <p class="auth-msg" id="auth-msg"></p>
     </div>
-    <div class="polaroid rise d3" style="--tilt:1.5deg">
-      <img src="photos/lidong-qipao.jpg" alt="立冬旗袍">
-      <span class="heart-badge">💗</span>
-      <p class="cap">立冬<small>旗袍 · 抱着玫瑰</small></p>
+    <!-- 已登录 -->
+    <div id="auth-in" class="hidden">
+      <h3>💗 <span id="who"></span></h3>
+      <p class="hint" id="admin-badge" style="display:none">👑 你是 superadmin，可以查看任意用户的照片。</p>
+      <div class="fx-picker" id="fx-picker">
+        <span class="fx-label">照片展示效果：</span>
+        <button type="button" data-fx="polaroid" class="fx-btn">📷 拍立得</button>
+        <button type="button" data-fx="grid" class="fx-btn">🔲 网格</button>
+        <button type="button" data-fx="carousel" class="fx-btn">🎞️ 轮播</button>
+        <button type="button" data-fx="masonry" class="fx-btn">🧱 瀑布流</button>
+      </div>
+      <p class="hint">选一个喜欢的效果，会记在你的账户上，下次登录还是它。</p>
+      <form id="form-upload" class="upload-form" enctype="multipart/form-data">
+        <input id="upload-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required>
+        <input id="upload-caption" name="caption" type="text" placeholder="给这张照片写一句说明（可空）" maxlength="200">
+        <button type="submit">上传到相册</button>
+      </form>
+      <p class="hint">图片存到 Neon 对象存储（S3），最大 5 MB，支持 JPG / PNG / WebP / GIF。</p>
+      <p class="auth-msg" id="upload-msg"></p>
+      <details class="pwd-box">
+        <summary>改密码</summary>
+        <form id="form-password" class="auth-form" autocomplete="off">
+          <input name="current" type="password" placeholder="当前密码" required minlength="6">
+          <input name="new" type="password" placeholder="新密码（至少 6 位）" required minlength="6">
+          <button type="submit">改密码</button>
+        </form>
+        <p class="auth-msg" id="pwd-msg"></p>
+      </details>
+      <button class="logout-btn" id="btn-logout" type="button">退出登录</button>
+      <!-- superadmin：用户列表 -->
+      <div id="admin-panel" style="display:none">
+        <h4>👑 用户管理</h4>
+        <p class="hint">点一个用户，看他/她上传的照片。</p>
+        <ul class="user-list" id="user-list"></ul>
+        <div id="admin-photos"></div>
+      </div>
     </div>
-    <div class="polaroid rise d4" style="--tilt:-1deg">
-      <img src="photos/kindergarten.jpg" alt="幼儿园毕业留念">
-      <span class="heart-badge">💗</span>
-      <p class="cap">幼儿园毕业留念<small>东干校幼儿园大（二）班</small></p>
+  </section>
+
+  <h2 class="section-title rise d5">照片墙</h2>
+  <div class="gallery-wrap rise d6">
+    <div class="gallery fx-polaroid" id="gallery">
+      <div class="photo-card" style="--tilt:-2deg">
+        <img src="photos/wedding-dress.jpg" alt="粉色婚纱">
+        <span class="heart-badge">💗</span>
+        <p class="cap">粉色婚纱<small>婚纱照</small></p>
+      </div>
+      <div class="photo-card" style="--tilt:1.5deg">
+        <img src="photos/lidong-qipao.jpg" alt="立冬旗袍">
+        <span class="heart-badge">💗</span>
+        <p class="cap">立冬<small>旗袍 · 抱着玫瑰</small></p>
+      </div>
+      <div class="photo-card" style="--tilt:-1deg">
+        <img src="photos/kindergarten.jpg" alt="幼儿园毕业留念">
+        <span class="heart-badge">💗</span>
+        <p class="cap">幼儿园毕业留念<small>东干校幼儿园大（二）班</small></p>
+      </div>
+      <div class="photo-card" style="--tilt:2deg">
+        <img src="photos/wedding-trio.jpg" alt="婚礼三人合影">
+        <span class="heart-badge">💗</span>
+        <p class="cap">婚礼合影<small>和伴娘们</small></p>
+      </div>
+      <div class="photo-card" style="--tilt:-1.5deg">
+        <img src="photos/wedding-group.jpg" alt="婚礼姐妹合影">
+        <span class="heart-badge">💗</span>
+        <p class="cap">姐妹合影<small>婚礼 · 比心</small></p>
+      </div>
+      <div class="photo-card" style="--tilt:1deg">
+        <img src="photos/selfie-cat.jpg" alt="日常自拍">
+        <span class="heart-badge">💗</span>
+        <p class="cap">日常自拍<small>猫咪贴纸</small></p>
+      </div>
     </div>
-    <div class="polaroid rise d5" style="--tilt:2deg">
-      <img src="photos/wedding-trio.jpg" alt="婚礼三人合影">
-      <span class="heart-badge">💗</span>
-      <p class="cap">婚礼合影<small>和伴娘们</small></p>
-    </div>
-    <div class="polaroid rise d6" style="--tilt:-1.5deg">
-      <img src="photos/wedding-group.jpg" alt="婚礼姐妹合影">
-      <span class="heart-badge">💗</span>
-      <p class="cap">姐妹合影<small>婚礼 · 比心</small></p>
-    </div>
-    <div class="polaroid rise d7" style="--tilt:1deg">
-      <img src="photos/selfie-cat.jpg" alt="日常自拍">
-      <span class="heart-badge">💗</span>
-      <p class="cap">日常自拍<small>猫咪贴纸</small></p>
+    <div class="carousel-bar" id="carousel-bar">
+      <button type="button" id="car-prev" aria-label="上一张">‹</button>
+      <span id="car-count">1 / 6</span>
+      <button type="button" id="car-next" aria-label="下一张">›</button>
     </div>
   </div>
 
   <footer class="rise d8">
-    <p>💗 cpxjazz × Alice · 2026 · <a href="/blog/">技术博客</a></p>
+    <p>💗 cpxjazz × Alice · 2026</p>
   </footer>
 </div>
 
@@ -93,6 +163,7 @@
 
 <script src="lightbox.js"></script>
 <script src="player.js"></script>
+<script src="app.js"></script>
 <script>
 /* 飘心、闪星、花瓣：随机生成，营造流动感 */
 (function () {

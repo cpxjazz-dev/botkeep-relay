@@ -1,19 +1,25 @@
-/* 照片灯箱：点拍立得放大，可左右切换、点空白或按 Esc 关闭（照片页用） */
+/* 照片灯箱：点照片放大，可左右切换、点空白或按 Esc 关闭（照片页用）。
+   卡片是动态加的（上传的照片），所以每次打开都重新数一遍。 */
 (function () {
-  var cards = Array.prototype.slice.call(document.querySelectorAll('.polaroid'));
+  var gallery = document.getElementById('gallery');
   var box = document.getElementById('lightbox');
   var img = document.getElementById('lb-img');
   var cap = document.getElementById('lb-cap');
   var prev = document.getElementById('lb-prev');
   var next = document.getElementById('lb-next');
   var close = document.getElementById('lb-close');
-  if (!box || !cards.length) return;
+  if (!box || !gallery) return;
 
+  function cards() {
+    return Array.prototype.slice.call(gallery.querySelectorAll('.photo-card'));
+  }
   var current = 0;
   function show(i) {
-    current = (i + cards.length) % cards.length;
-    var photo = cards[current].querySelector('img');
-    var caption = cards[current].querySelector('.cap');
+    var list = cards();
+    if (!list.length) return;
+    current = (i + list.length) % list.length;
+    var photo = list[current].querySelector('img');
+    var caption = list[current].querySelector('.cap');
     if (!photo) return;
     img.src = photo.src;
     img.alt = photo.alt || '';
@@ -25,8 +31,12 @@
     box.classList.remove('open');
     document.body.style.overflow = '';
   }
-  cards.forEach(function (card, i) {
-    card.addEventListener('click', function () { show(i); });
+  // 事件委托：新上传的照片也能点开。
+  gallery.addEventListener('click', function (e) {
+    var card = e.target.closest('.photo-card');
+    if (!card) return;
+    var list = cards();
+    show(list.indexOf(card));
   });
   prev.addEventListener('click', function (e) { e.stopPropagation(); show(current - 1); });
   next.addEventListener('click', function (e) { e.stopPropagation(); show(current + 1); });

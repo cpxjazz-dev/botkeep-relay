@@ -6,16 +6,20 @@
 
 ## 为什么是 Go
 
-- 零第三方依赖，只用标准库，**不用装任何包**，启动不到 1 秒，躲开了 Botkeep 约 70 秒的启动窗口。
-- 编译后是单个约 10 MB 的静态二进制，运行时内存十几 MB，放在 512 MB 的免费机上很宽松。
+- 几乎只用标准库，启动不到 1 秒，躲开了 Botkeep 约 70 秒的启动窗口。
+- 唯一第三方依赖是 Postgres 驱动 `github.com/lib/pq`（纯 Go），已 `go mod vendor` 进仓库，构建不用联网下载。
+- 编译后是单个约 17 MB 的静态二进制，运行时内存十几 MB，放在 512 MB 的免费机上很宽松。
 - 配置存在 `config.json`，重启后还在，网页上改。
 
 ## 文件
 
 - `main.go`：服务端全部逻辑（HTTP 接口 + 钉钉/QQ 发送）。
 - `index.html`：配置页面（`//go:embed` 编进二进制）。
-- `go.mod`：模块定义，`go 1.27`。
+- `go.mod`：模块定义，`go 1.27`；`vendor/`：lib/pq 驱动（离线构建用）。
 - `config.json`：运行时生成，不用手动建。
+- `.env.local`：Neon 连接串与密钥（DATABASE_URL、AWS_*），**不提交**，部署时单独上传。
+- `love-schema.sql`：love 站的建表 SQL（服务启动时也会自动建表）。
+- `db.go` / `password.go` / `s3.go` / `love.go`：love 站的数据库、密码哈希、对象存储、账户与照片接口。
 
 ## 接口
 
@@ -42,17 +46,57 @@
 
 ## 博客（附带的小型静态站）
 
-`blog/` 是一份纯静态技术博客，介绍学习项目、链到各 GitHub 仓库。服务在 `/blog/` 下原样提供它；以后迁到 Cloudflare Pages 时直接把 `blog/` 目录推过去，不用改内容。
+`blog/` 是一份纯静态技术博客，介绍学习项目、链到各 GitHub 仓库。服务在 `/blog/` 下原样提供它；以后迁到 Cloudflare Pages 时直接把 `blog/` 目录推过去，不用改内容。**博客与 love 站已彻底拆开，互相不链接。**
 
 - 线上：https://rxs3yg.bot-keep.xyz/blog/
 - 加新文章：往 `blog/` 里加 HTML 文件，重新部署即可（改 main.go 不需要，静态文件嵌在二进制里，重启后生效）。
 
-## 给她的（附带的浪漫照片站）
+## 给她的（独立照片站：账户 + 上传 + 四种展示效果）
 
-`love/` 是给女友的独立小站：生活照片墙（拍立得风格）+ 飘心、闪星、花瓣流式特效 + 流光标题 + 音乐播放器。服务在 `/love/` 下原样提供它，同样是纯静态，迁 Cloudflare Pages 时直接推 `love/` 目录。
+`love/` 是给女友的独立小站，与博客彻底拆开、互不链接：生活照片墙 + 飘心、闪星、花瓣流式特效 + 流光标题 + 音乐播放器。
 
 - 线上：https://rxs3yg.bot-keep.xyz/love/
-- 加新照片：把图放进 `love/photos/`，在 `love/index.html` 里加一张拍立得卡，重新部署即可。
+- 原有的 6 张生活照片仍在 `love/photos/` 里，是静态内容。
+
+### 账户
+
+love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`love_users` / `love_sessions` / `love_photos` 三张表，服务启动时自动建表）。
+
+- 注册：用户名 3–20 位（字母/数字/下划线），密码至少 6 位，昵称可空。
+- **密码只存 PBKDF2-HMAC-SHA256 哈希**（`password.go`，标准库实现，60 万次迭代 + 16 字节随机盐），明文只在内存里出现一次，绝不写盘、不记日志。
+- 会话：登录后发一个 30 天有效的 HttpOnly 会话 cookie（`love_session`），库里只存 token 的 SHA-256 哈希；改密后旧会话全部作废。
+- **superadmin**：`LOVE_SUPERADMIN_USERNAME`（默认 `cpxjazz`）指定的用户名，注册或登录时自动升为 superadmin；该账户保留下来，不会被覆盖。superadmin 能在页面上的用户管理里点任意用户、看他/她上传的照片（`GET /love/api/photos?user_id=` 与 `GET /love/api/users` 只对 superadmin 开放）。
+
+### 上传：照片进 Neon 对象存储
+
+- 登录后可在页面上上传图片（JPG / PNG / WebP / GIF，最大 5 MB），文件存到 Neon Object Storage 的 `uploads` 桶（路径风格，`s3.go` 自己算 SigV4 签名），元数据（上传者、文件名、说明、大小）记在 `love_photos` 表。
+- 看图用 1 小时有效的预签名链接，浏览器直接从 S3 拉图。
+- 配置在 `.env.local`：`DATABASE_URL`（pooled，给应用流量）、`DATABASE_URL_UNPOOLED`（直连，给迁移）、`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（对象存储凭据）、`AWS_ENDPOINT_URL_S3`、`AWS_REGION`、`NEON_STORAGE_BUCKET`。
+
+### 四种展示效果
+
+登录后在账户卡里选一种，记在账户的 `display_effect` 字段上，下次登录还是它（未登录默认拍立得）：
+
+- 📷 **拍立得**（默认）：歪着摆的白边卡片、胶带、爱心徽章。
+- 🔲 **网格**：齐整方块，无倾斜、无胶带。
+- 🎞️ **轮播**：一张大图居中，左右切换，5 秒自动换一张。
+- 🧱 **瀑布流**：多列、按原比例、不裁切。
+
+点照片仍可开灯箱左右翻看（新上传的照片也能点开）。
+
+### love 接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/love/api/register` | 注册（用户名、密码、昵称） |
+| POST | `/love/api/login` | 登录 |
+| POST | `/love/api/logout` | 登出 |
+| GET | `/love/api/me` | 当前登录用户 |
+| POST | `/love/api/password` | 改密码（要当前密码） |
+| POST | `/love/api/prefs` | 保存展示效果偏好 |
+| POST | `/love/api/upload` | 上传图片（multipart，字段 photo，可带 caption） |
+| GET | `/love/api/photos` | 已上传照片（带 1 小时预签名链接）；`?mine=1` 只看自己的；`?user_id=` 只给 superadmin |
+| GET | `/love/api/users` | 用户列表，只给 superadmin |
 
 ## 每小时运行状态推送
 

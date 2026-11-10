@@ -4,3 +4,4 @@ openids.json
 history.json
 # 编译产物
 relay
+.env.local

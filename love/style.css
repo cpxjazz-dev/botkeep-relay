@@ -188,42 +188,77 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-/* 拍立得照片墙 */
-.polaroid-wall {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 24px;
-  margin-top: 36px;
+/* 照片墙：四种展示效果，容器上的 fx-* 类切换。默认拍立得。 */
+.gallery-wrap { margin-top: 36px; }
+.section-title {
+  text-align: center; font-size: 22px; margin: 44px 0 0; color: var(--ink);
 }
-.polaroid {
+.gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 24px; }
+.photo-card {
   background: #fffdf6;
   border-radius: 6px;
   padding: 12px 12px 16px;
   box-shadow: 0 10px 28px rgba(180, 80, 110, .18);
-  transform: rotate(var(--tilt, 0deg));
   transition: transform .25s ease, box-shadow .25s ease;
   position: relative;
   cursor: zoom-in;
 }
-.polaroid:hover { transform: rotate(0deg) translateY(-6px) scale(1.03); box-shadow: 0 18px 44px rgba(229, 107, 140, .28); }
-.polaroid::before {
+.photo-card img {
+  width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block;
+  border-radius: 4px; background: #fbeef3;
+  transition: transform .35s ease;
+}
+.photo-card .cap { margin: 10px 4px 0; font-size: 14px; color: #5a3a48; text-align: center; }
+.photo-card .cap small { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
+.photo-card .heart-badge {
+  position: absolute; right: 18px; bottom: 52px;
+  font-size: 18px; filter: drop-shadow(0 2px 4px rgba(229, 107, 140, .4));
+  animation: heartbeat 1.8s ease-in-out infinite;
+}
+/* 拍立得：歪着摆、胶带、爱心徽章 */
+.gallery.fx-polaroid .photo-card { transform: rotate(var(--tilt, 0deg)); }
+.gallery.fx-polaroid .photo-card:hover { transform: rotate(0deg) translateY(-6px) scale(1.03); box-shadow: 0 18px 44px rgba(229, 107, 140, .28); }
+.gallery.fx-polaroid .photo-card::before {
   content: ""; position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-2deg);
   width: 84px; height: 22px;
   background: rgba(245, 183, 205, .65);
   border-left: 1px dashed rgba(255, 255, 255, .7);
   border-right: 1px dashed rgba(255, 255, 255, .7);
 }
-.polaroid img {
-  width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block;
-  border-radius: 4px; background: #fbeef3;
-  transition: transform .35s ease;
+.gallery.fx-polaroid .photo-card:hover img { transform: scale(1.05); }
+/* 网格：齐整方块，无倾斜、无胶带 */
+.gallery.fx-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.gallery.fx-grid .photo-card { padding: 8px; border-radius: 10px; }
+.gallery.fx-grid .photo-card::before,
+.gallery.fx-grid .photo-card .heart-badge { display: none; }
+.gallery.fx-grid .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
+/* 瀑布流：多列、按原比例、不裁切 */
+.gallery.fx-masonry { display: block; columns: 3 220px; column-gap: 20px; }
+.gallery.fx-masonry .photo-card {
+  break-inside: avoid; margin: 0 0 20px; padding: 10px 10px 14px;
 }
-.polaroid:hover img { transform: scale(1.05); }
-.polaroid .cap { margin: 10px 4px 0; font-size: 14px; color: #5a3a48; text-align: center; }
-.polaroid .cap small { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
-.polaroid .heart-badge {
-  position: absolute; right: 18px; bottom: 52px;
-  font-size: 18px; filter: drop-shadow(0 2px 4px rgba(229, 107, 140, .4));
-  animation: heartbeat 1.8s ease-in-out infinite;
+.gallery.fx-masonry .photo-card img { aspect-ratio: auto; }
+.gallery.fx-masonry .photo-card::before,
+.gallery.fx-masonry .photo-card .heart-badge { display: none; }
+.gallery.fx-masonry .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
+/* 轮播：一张大图居中，左右切换（app.js 控制显示） */
+.gallery.fx-carousel { display: block; }
+.gallery.fx-carousel .photo-card {
+  max-width: 640px; margin: 0 auto; padding: 14px 14px 18px;
 }
+.gallery.fx-carousel .photo-card::before { display: none; }
+.gallery.fx-carousel .photo-card img { aspect-ratio: 4 / 3; }
+.carousel-bar {
+  display: none; align-items: center; justify-content: center; gap: 18px;
+  margin-top: 18px;
+}
+.carousel-bar button {
+  width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--rose-border);
+  background: var(--glass); color: var(--rose-deep); font-size: 22px; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(180, 80, 110, .14);
+}
+.carousel-bar button:hover { background: var(--rose-soft); }
+.carousel-bar span { color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 
 /* 灯箱 */
 .lightbox {
@@ -266,3 +301,63 @@ footer {
   border-top: 1px solid rgba(255, 255, 255, .7); padding-top: 18px;
 }
 footer a { color: var(--muted); }
+
+/* ---------- 账户 / 上传 / 管理员 ---------- */
+.hidden { display: none !important; }
+.nav-account {
+  border: none; background: none; cursor: pointer;
+  font-size: 14px; color: var(--muted); font-family: inherit;
+  padding: 6px 14px; border-radius: 999px; white-space: nowrap;
+}
+.nav-account:hover { color: var(--rose); background: rgba(229, 107, 140, .1); }
+.account-card {
+  max-width: 680px; margin: 28px auto 0;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 24px; padding: 24px 28px;
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 8px 28px rgba(180, 80, 110, .12);
+}
+.account-card h3 { margin: 0 0 8px; font-size: 18px; }
+.account-card h4 { margin: 20px 0 8px; font-size: 16px; }
+.account-card .hint { color: var(--muted); font-size: 13.5px; margin: 6px 0; }
+.auth-tabs { display: flex; gap: 8px; margin: 12px 0; }
+.auth-tab {
+  border: 1px solid var(--rose-border); background: transparent; color: var(--rose-deep);
+  font-size: 14px; padding: 6px 18px; border-radius: 999px; cursor: pointer; font-family: inherit;
+}
+.auth-tab.active { background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff; border-color: transparent; }
+.auth-form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.auth-form input, .upload-form input[type="text"] {
+  border: 1px solid var(--rose-border); border-radius: 12px; padding: 10px 14px;
+  font-size: 14px; font-family: inherit; color: var(--ink); background: rgba(255, 255, 255, .8);
+  outline: none;
+}
+.auth-form input:focus, .upload-form input[type="text"]:focus { border-color: var(--rose); box-shadow: 0 0 0 3px var(--rose-soft); }
+.auth-form button, .upload-form button[type="submit"], .logout-btn {
+  border: none; border-radius: 999px; padding: 10px 18px; font-size: 14px; cursor: pointer;
+  background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff; font-family: inherit;
+  box-shadow: 0 6px 16px rgba(229, 107, 140, .35);
+}
+.auth-form button:hover, .upload-form button[type="submit"]:hover, .logout-btn:hover { filter: brightness(1.05); }
+.auth-msg { color: var(--rose-deep); font-size: 13.5px; min-height: 20px; margin: 8px 0 0; }
+.fx-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0 4px; }
+.fx-picker .fx-label { font-size: 14px; color: var(--ink); }
+.fx-btn {
+  border: 1px solid var(--rose-border); background: rgba(255, 255, 255, .7); color: var(--ink);
+  font-size: 13.5px; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-family: inherit;
+}
+.fx-btn.active { background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff; border-color: transparent; font-weight: 600; }
+.upload-form { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.upload-form input[type="file"] { font-size: 13.5px; color: var(--muted); }
+.pwd-box { margin-top: 16px; border-top: 1px solid rgba(229, 107, 140, .18); padding-top: 12px; }
+.pwd-box summary { cursor: pointer; color: var(--muted); font-size: 14px; }
+.logout-btn { margin-top: 16px; background: rgba(255, 255, 255, .8); color: var(--rose-deep); box-shadow: none; border: 1px solid var(--rose-border); }
+.user-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
+.user-btn {
+  width: 100%; text-align: left; border: 1px solid var(--rose-border); background: rgba(255, 255, 255, .7);
+  border-radius: 12px; padding: 10px 14px; font-size: 14px; color: var(--ink); cursor: pointer; font-family: inherit;
+}
+.user-btn:hover { background: var(--rose-soft); }
+.admin-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 10px; }
+.admin-photos-grid img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; display: block; }

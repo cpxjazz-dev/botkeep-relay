@@ -1,0 +1,635 @@
+// love 站账户与照片接口：注册、登录、会话、改密、展示效果偏好、上传、照片列表、管理员看用户。
+// 用户数据进 Neon Postgres，照片文件进 Neon Object Storage（S3），密码只存 PBKDF2 哈希。
+package main
+
+import (
+	"crypto/rand"
+	"crypto/sha256"
+	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+const (
+	loveSessionCookie = "love_session"
+	loveSessionTTL    = 30 * 24 * time.Hour
+	loveMaxUpload     = 5 << 20 // 5 MB
+)
+
+// LoveUser 是 love 站的一个账户。
+type LoveUser struct {
+	ID            int    `json:"id"`
+	Username      string `json:"username"`
+	DisplayName   string `json:"display_name"`
+	IsSuperadmin  bool   `json:"is_superadmin"`
+	DisplayEffect string `json:"display_effect"`
+	CreatedAt     string `json:"created_at"`
+}
+
+// ---------- 工具 ----------
+
+func loveDBReady(w http.ResponseWriter) bool {
+	if db == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "数据库未连接，账户功能暂不可用"})
+		return false
+	}
+	if s3cfg == nil {
+		// 账户功能不需要 S3，只在上传时检查；这里不拦截。
+	}
+	return true
+}
+
+func superadminUsername() string {
+	if v := os.Getenv("LOVE_SUPERADMIN_USERNAME"); v != "" {
+		return v
+	}
+	return "cpxjazz"
+}
+
+var usernameRe = regexp.MustCompile(`^[a-zA-Z0-9_]{3,20}$`)
+
+func validUsername(u string) bool { return usernameRe.MatchString(u) }
+
+func validDisplayEffect(e string) bool {
+	switch e {
+	case "polaroid", "grid", "carousel", "masonry":
+		return true
+	}
+	return false
+}
+
+// ---------- 会话 ----------
+
+func newSessionToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+func hashSessionToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
+
+func createSession(userID int) (string, error) {
+	token, err := newSessionToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = db.Exec(
+		`INSERT INTO love_sessions (token_hash, user_id, expires_at) VALUES ($1, $2, $3)`,
+		hashSessionToken(token), userID, time.Now().Add(loveSessionTTL),
+	)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+func setSessionCookie(w http.ResponseWriter, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     loveSessionCookie,
+		Value:    token,
+		Path:     "/love/",
+		MaxAge:   int(loveSessionTTL / time.Second),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearSessionCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     loveSessionCookie,
+		Value:    "",
+		Path:     "/love/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// getSessionUser 从 cookie 里拿当前登录用户。没登录、过期或库里没有都返回 nil。
+func getSessionUser(r *http.Request) *LoveUser {
+	if db == nil {
+		return nil
+	}
+	c, err := r.Cookie(loveSessionCookie)
+	if err != nil || c.Value == "" {
+		return nil
+	}
+	var u LoveUser
+	err = db.QueryRow(
+		`SELECT u.id, u.username, u.display_name, u.is_superadmin, u.display_effect, u.created_at
+		 FROM love_users u JOIN love_sessions s ON s.user_id = u.id
+		 WHERE s.token_hash = $1 AND s.expires_at > now()`,
+		hashSessionToken(c.Value),
+	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.IsSuperadmin, &u.DisplayEffect, &u.CreatedAt)
+	if err != nil {
+		return nil
+	}
+	return &u
+}
+
+func deleteSession(r *http.Request) {
+	if db == nil {
+		return
+	}
+	c, err := r.Cookie(loveSessionCookie)
+	if err != nil || c.Value == "" {
+		return
+	}
+	db.Exec(`DELETE FROM love_sessions WHERE token_hash = $1`, hashSessionToken(c.Value))
+}
+
+// ensureSuperadmin：用户名与 LOVE_SUPERADMIN_USERNAME 一致的账户，
+// 注册或登录时自动升为 superadmin（只升这一个指定账户）。
+func ensureSuperadmin(username string) {
+	if db == nil || username != superadminUsername() {
+		return
+	}
+	db.Exec(`UPDATE love_users SET is_superadmin = TRUE WHERE username = $1`, username)
+}
+
+// ---------- 注册 / 登录 / 登出 / 改密 ----------
+
+func handleLoveRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	var input struct {
+		Username    string `json:"username"`
+		Password    string `json:"password"`
+		DisplayName string `json:"display_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求不是合法 JSON"})
+		return
+	}
+	input.Username = strings.TrimSpace(input.Username)
+	input.DisplayName = strings.TrimSpace(input.DisplayName)
+	if !validUsername(input.Username) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "用户名 3–20 位，只能是字母、数字、下划线"})
+		return
+	}
+	if err := checkPasswordLength(input.Password); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if input.DisplayName == "" {
+		input.DisplayName = input.Username
+	}
+	hash, err := hashPassword(input.Password)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "密码处理失败"})
+		return
+	}
+	var userID int
+	err = db.QueryRow(
+		`INSERT INTO love_users (username, display_name, password_hash) VALUES ($1, $2, $3) RETURNING id`,
+		input.Username, input.DisplayName, hash,
+	).Scan(&userID)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "love_users_username_key") {
+			writeJSON(w, http.StatusConflict, map[string]string{"error": "这个用户名已被注册"})
+			return
+		}
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "注册失败"})
+		return
+	}
+	// 指定的 superadmin 账户注册即升为 superadmin。
+	ensureSuperadmin(input.Username)
+	token, err := createSession(userID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "创建会话失败"})
+		return
+	}
+	setSessionCookie(w, token)
+	u := getUserByID(userID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": u})
+}
+
+func getUserByID(id int) *LoveUser {
+	var u LoveUser
+	err := db.QueryRow(
+		`SELECT id, username, display_name, is_superadmin, display_effect, created_at FROM love_users WHERE id = $1`,
+		id,
+	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.IsSuperadmin, &u.DisplayEffect, &u.CreatedAt)
+	if err != nil {
+		return nil
+	}
+	return &u
+}
+
+func handleLoveLogin(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	var input struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求不是合法 JSON"})
+		return
+	}
+	input.Username = strings.TrimSpace(input.Username)
+	var u LoveUser
+	var hash string
+	err := db.QueryRow(
+		`SELECT id, username, display_name, is_superadmin, display_effect, created_at, password_hash
+		 FROM love_users WHERE username = $1`,
+		input.Username,
+	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.IsSuperadmin, &u.DisplayEffect, &u.CreatedAt, &hash)
+	if err != nil || !verifyPassword(input.Password, hash) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "用户名或密码不对"})
+		return
+	}
+	// 指定的 superadmin 账户登录时也确保是 superadmin。
+	ensureSuperadmin(u.Username)
+	token, err := createSession(u.ID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "创建会话失败"})
+		return
+	}
+	setSessionCookie(w, token)
+	// 重新读一次，确保 is_superadmin 是最新的。
+	if fresh := getUserByID(u.ID); fresh != nil {
+		u = *fresh
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": &u})
+}
+
+func handleLoveLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	deleteSession(r)
+	clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func handleLoveMe(w http.ResponseWriter, r *http.Request) {
+	if !loveDBReady(w) {
+		return
+	}
+	u := getSessionUser(r)
+	if u == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": u})
+}
+
+func handleLovePassword(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	u := getSessionUser(r)
+	if u == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+		return
+	}
+	var input struct {
+		Current string `json:"current"`
+		New     string `json:"new"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求不是合法 JSON"})
+		return
+	}
+	var hash string
+	if err := db.QueryRow(`SELECT password_hash FROM love_users WHERE id = $1`, u.ID).Scan(&hash); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "读取账户失败"})
+		return
+	}
+	if !verifyPassword(input.Current, hash) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "当前密码不对"})
+		return
+	}
+	if err := checkPasswordLength(input.New); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	newHash, err := hashPassword(input.New)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "密码处理失败"})
+		return
+	}
+	if _, err := db.Exec(`UPDATE love_users SET password_hash = $1 WHERE id = $2`, newHash, u.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "改密失败"})
+		return
+	}
+	// 改密后旧会话全部作废，重新登录。
+	db.Exec(`DELETE FROM love_sessions WHERE user_id = $1`, u.ID)
+	clearSessionCookie(w)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// ---------- 展示效果偏好 ----------
+
+func handleLovePrefs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	u := getSessionUser(r)
+	if u == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+		return
+	}
+	var input struct {
+		DisplayEffect string `json:"display_effect"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请求不是合法 JSON"})
+		return
+	}
+	if !validDisplayEffect(input.DisplayEffect) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "展示效果只能是 polaroid、grid、carousel、masonry"})
+		return
+	}
+	if _, err := db.Exec(`UPDATE love_users SET display_effect = $1 WHERE id = $2`, input.DisplayEffect, u.ID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "保存偏好失败"})
+		return
+	}
+	u.DisplayEffect = input.DisplayEffect
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": u})
+}
+
+// ---------- 上传与照片 ----------
+
+var s3cfg *s3Config
+
+func extForContentType(ct string) string {
+	switch ct {
+	case "image/jpeg":
+		return "jpg"
+	case "image/png":
+		return "png"
+	case "image/webp":
+		return "webp"
+	case "image/gif":
+		return "gif"
+	}
+	return ""
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
+}
+
+// LovePhoto 是一张上传的照片（带一个 1 小时有效的查看链接）。
+type LovePhoto struct {
+	ID          int    `json:"id"`
+	UserID      int    `json:"user_id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Filename    string `json:"filename"`
+	Caption     string `json:"caption"`
+	ContentType string `json:"content_type"`
+	SizeBytes   int64  `json:"size_bytes"`
+	URL         string `json:"url"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	u := getSessionUser(r)
+	if u == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+		return
+	}
+	if s3cfg == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "对象存储未配置，上传暂不可用"})
+		return
+	}
+	if err := r.ParseMultipartForm(loveMaxUpload + (1 << 20)); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "表单解析失败: " + err.Error()})
+		return
+	}
+	file, header, err := r.FormFile("photo")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请选一张图片上传（字段 photo）"})
+		return
+	}
+	defer file.Close()
+	if header.Size > loveMaxUpload {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "图片不能超过 5 MB"})
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(file, loveMaxUpload+1))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "读取图片失败"})
+		return
+	}
+	if int64(len(data)) > loveMaxUpload {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "图片不能超过 5 MB"})
+		return
+	}
+	ct := http.DetectContentType(data)
+	ext := extForContentType(ct)
+	if ext == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "只支持 JPG、PNG、WebP、GIF 图片"})
+		return
+	}
+	caption := strings.TrimSpace(r.FormValue("caption"))
+	if len(caption) > 200 {
+		caption = caption[:200]
+	}
+	key := fmt.Sprintf("u%d/%s-%s.%s", u.ID, time.Now().Format("20060102"), randomHex(6), ext)
+	if err := s3cfg.s3PutObject(key, ct, data); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "存入对象存储失败: " + err.Error()})
+		return
+	}
+	var photoID int
+	err = db.QueryRow(
+		`INSERT INTO love_photos (user_id, object_key, filename, caption, content_type, size_bytes)
+		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+		u.ID, key, header.Filename, caption, ct, len(data),
+	).Scan(&photoID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "保存照片记录失败"})
+		return
+	}
+	photo := LovePhoto{
+		ID: photoID, UserID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
+		Filename: header.Filename, Caption: caption, ContentType: ct, SizeBytes: int64(len(data)),
+	}
+	if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
+		photo.URL = url
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "photo": &photo})
+}
+
+// listLovePhotos 查照片并给每张配一个 1 小时有效的查看链接。
+func listLovePhotos(userID *int, limit int) ([]LovePhoto, error) {
+	var rows *sql.Rows
+	var err error
+	if userID != nil {
+		rows, err = db.Query(
+			`SELECT p.id, p.user_id, u.username, u.display_name, p.filename, p.caption,
+			        p.content_type, p.size_bytes, p.object_key, p.created_at
+			 FROM love_photos p JOIN love_users u ON u.id = p.user_id
+			 WHERE p.user_id = $1 ORDER BY p.created_at DESC LIMIT $2`, *userID, limit)
+	} else {
+		rows, err = db.Query(
+			`SELECT p.id, p.user_id, u.username, u.display_name, p.filename, p.caption,
+			        p.content_type, p.size_bytes, p.object_key, p.created_at
+			 FROM love_photos p JOIN love_users u ON u.id = p.user_id
+			 ORDER BY p.created_at DESC LIMIT $1`, limit)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	photos := []LovePhoto{}
+	for rows.Next() {
+		var p LovePhoto
+		var key string
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Username, &p.DisplayName, &p.Filename,
+			&p.Caption, &p.ContentType, &p.SizeBytes, &key, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		if s3cfg != nil {
+			if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
+				p.URL = url
+			}
+		}
+		photos = append(photos, p)
+	}
+	return photos, rows.Err()
+}
+
+func handleLovePhotos(w http.ResponseWriter, r *http.Request) {
+	if !loveDBReady(w) {
+		return
+	}
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			limit = n
+		}
+	}
+	// ?user_id= 只给 superadmin 用：想看谁的看谁的。
+	if v := r.URL.Query().Get("user_id"); v != "" {
+		me := getSessionUser(r)
+		if me == nil || !me.IsSuperadmin {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "只有 superadmin 能按用户查看照片"})
+			return
+		}
+		uid, err := strconv.Atoi(v)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "user_id 不合法"})
+			return
+		}
+		photos, err := listLovePhotos(&uid, limit)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询照片失败"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"photos": photos})
+		return
+	}
+	// ?mine=1：只看自己的。
+	if r.URL.Query().Get("mine") == "1" {
+		me := getSessionUser(r)
+		if me == nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+			return
+		}
+		photos, err := listLovePhotos(&me.ID, limit)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询照片失败"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"photos": photos})
+		return
+	}
+	photos, err := listLovePhotos(nil, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询照片失败"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"photos": photos})
+}
+
+// ---------- 管理员：用户列表 ----------
+
+func handleLoveUsers(w http.ResponseWriter, r *http.Request) {
+	if !loveDBReady(w) {
+		return
+	}
+	me := getSessionUser(r)
+	if me == nil || !me.IsSuperadmin {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "只有 superadmin 能看用户列表"})
+		return
+	}
+	rows, err := db.Query(
+		`SELECT u.id, u.username, u.display_name, u.is_superadmin, u.display_effect, u.created_at,
+		        (SELECT count(*) FROM love_photos p WHERE p.user_id = u.id)
+		 FROM love_users u ORDER BY u.created_at ASC`)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询用户失败"})
+		return
+	}
+	defer rows.Close()
+	type userRow struct {
+		ID            int    `json:"id"`
+		Username      string `json:"username"`
+		DisplayName   string `json:"display_name"`
+		IsSuperadmin  bool   `json:"is_superadmin"`
+		DisplayEffect string `json:"display_effect"`
+		PhotoCount    int    `json:"photo_count"`
+		CreatedAt     string `json:"created_at"`
+	}
+	users := []userRow{}
+	for rows.Next() {
+		var u userRow
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.IsSuperadmin,
+			&u.DisplayEffect, &u.CreatedAt, &u.PhotoCount); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询用户失败"})
+			return
+		}
+		users = append(users, u)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"users": users})
+}
