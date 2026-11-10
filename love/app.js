@@ -95,6 +95,23 @@
     stopMasonryScroll();
     // 离开瀑布流时把两列拆掉、卡片放回画廊根上。
     if (fx !== 'masonry') teardownMasonryCols();
+    // 换效果前，先把上一个效果留在卡片上的行内样式全清掉（位置/宽高/透明度等），
+    // 再把画廊高度复位。以前只有网格/满幅行/拍立得分支清，轮播/封面流/堆叠/扩散/环形
+    // 不清——从记忆树切过去，卡片还带着树的 100px 宽、绝对定位和 left/top，
+    // 图片就被挤瘦挤小了（截图里就是这样）。
+    gallery.querySelectorAll('.photo-card').forEach(function (c) {
+      c.style.display = '';
+      c.style.transform = '';
+      c.style.opacity = '';
+      c.style.zIndex = '';
+      c.style.left = '';
+      c.style.top = '';
+      c.style.position = '';
+      c.style.width = '';
+      c.style.gridRowEnd = '';
+      c.classList.remove('ring-focus');
+    });
+    gallery.style.height = '';
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
@@ -116,56 +133,16 @@
       ringStart();
       layoutRing();
     } else if (fx === 'masonry') {
-      // 瀑布流：双列对向滚动。先清掉别的样式，再把卡片分进两列、开始对向滚动。
-      gallery.querySelectorAll('.photo-card').forEach(function (c) {
-        c.style.display = '';
-        c.style.transform = '';
-        c.style.opacity = '';
-        c.style.zIndex = '';
-        c.style.left = '';
-        c.style.top = '';
-        c.style.position = '';
-        c.style.width = '';
-        c.style.gridRowEnd = '';
-        c.classList.remove('ring-focus');
-      });
-      gallery.style.height = '';
+      // 瀑布流：双列对向滚动。行内样式已在上面统一清掉，这里只分列、开始滚动。
       buildMasonryCols();
       startMasonryScroll();
     } else if (fx === 'grid' || fx === 'justified') {
       // 网格/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走。
       gallery.scrollTop = 0;
       scrollDir = 1;
-      // 其他效果下，把轮播/封面流/堆叠/扩散/环形/记忆树留下的行内样式清掉，卡片恢复正常流式布局。
-      gallery.querySelectorAll('.photo-card').forEach(function (c) {
-        c.style.display = '';
-        c.style.transform = '';
-        c.style.opacity = '';
-        c.style.zIndex = '';
-        c.style.left = '';
-        c.style.top = '';
-        c.style.position = '';
-        c.style.width = '';
-        c.style.gridRowEnd = '';
-        c.classList.remove('ring-focus');
-      });
       startScroll();
-      gallery.style.height = '';
     } else {
-      // 其他效果下，把轮播/封面流/堆叠/扩散/环形/记忆树留下的行内样式清掉，卡片恢复正常流式布局。
-      gallery.querySelectorAll('.photo-card').forEach(function (c) {
-        c.style.display = '';
-        c.style.transform = '';
-        c.style.opacity = '';
-        c.style.zIndex = '';
-        c.style.left = '';
-        c.style.top = '';
-        c.style.position = '';
-        c.style.width = '';
-        c.style.gridRowEnd = '';
-        c.classList.remove('ring-focus');
-      });
-      gallery.style.height = '';
+      // 拍立得等：卡片恢复正常流式布局（行内样式已在上面统一清掉）。
     }
   }
 
