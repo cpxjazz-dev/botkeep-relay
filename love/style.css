@@ -368,6 +368,32 @@ body {
   .gallery.fx-tree .photo-card::before,
   .gallery.fx-tree .photo-card::after { display: none; }
 }
+/* 环形：照片排成一个 3D 圆环，自动慢慢转；点哪张，哪张转到正前方、变大，环停下。
+   位置由 app.js 按 ringAngle 算 transform；背过去的卡片藏起来（backface），带倒影。 */
+.gallery.fx-ring {
+  display: block; position: relative;
+  height: 520px; perspective: 1400px;
+  overflow: visible;
+}
+.gallery.fx-ring .photo-card {
+  position: absolute; left: 50%; top: 50%;
+  width: 260px; margin-left: -130px; margin-top: -200px;
+  padding: 10px 10px 14px;
+  backface-visibility: hidden;
+  transition: transform .6s cubic-bezier(.22, .8, .3, 1), opacity .6s ease;
+  will-change: transform; cursor: pointer;
+}
+.gallery.fx-ring .photo-card::before { display: none; }
+.gallery.fx-ring .photo-card img {
+  aspect-ratio: 3 / 4;
+  -webkit-box-reflect: below 10px linear-gradient(transparent 70%, rgba(255, 255, 255, .22));
+}
+.gallery.fx-ring .photo-card .heart-badge { display: none; }
+/* 被点中的那张：再往前推一点、放大。 */
+.gallery.fx-ring .photo-card.ring-focus {
+  box-shadow: 0 24px 48px rgba(120, 40, 70, .4);
+  z-index: 60 !important;
+}
 .carousel-bar {
   display: none; align-items: center; justify-content: center; gap: 18px;
   margin-top: 18px;
@@ -468,6 +494,9 @@ footer a { color: var(--muted); }
   font-size: 13.5px; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-family: inherit;
 }
 .fx-btn.active { background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff; border-color: transparent; font-weight: 600; }
+/* 自动轮播开关：和效果按钮区分开（虚线边），开启时高亮。 */
+.fx-btn.autofx-btn { border-style: dashed; margin-left: 6px; }
+.fx-btn.autofx-btn.active { background: linear-gradient(90deg, #c96f8f, #e0789a); border-style: solid; }
 .upload-form { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .upload-form input[type="file"] { font-size: 13.5px; color: var(--muted); }
 .pwd-box { margin-top: 16px; border-top: 1px solid rgba(229, 107, 140, .18); padding-top: 12px; }

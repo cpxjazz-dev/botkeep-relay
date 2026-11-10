@@ -62,7 +62,7 @@ func validUsername(u string) bool { return usernameRe.MatchString(u) }
 
 func validDisplayEffect(e string) bool {
 	switch e {
-	case "polaroid", "grid", "carousel", "masonry", "coverflow", "justified", "stack", "scatter", "tree":
+	case "polaroid", "grid", "carousel", "masonry", "coverflow", "justified", "stack", "scatter", "tree", "ring":
 		return true
 	}
 	return false
@@ -393,7 +393,7 @@ func handleLovePrefs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !validDisplayEffect(input.DisplayEffect) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "展示效果只能是 polaroid、grid、carousel、masonry、coverflow、justified、stack、scatter、tree"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "展示效果只能是 polaroid、grid、carousel、masonry、coverflow、justified、stack、scatter、tree、ring"})
 		return
 	}
 	if _, err := db.Exec(`UPDATE love_users SET display_effect = $1 WHERE id = $2`, input.DisplayEffect, u.ID); err != nil {

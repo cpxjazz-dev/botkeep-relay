@@ -3,12 +3,19 @@
   var gallery = document.getElementById('gallery');
   var carouselBar = document.getElementById('carousel-bar');
   var carCount = document.getElementById('car-count');
-  var FX = ['polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified', 'stack', 'scatter', 'tree'];
+  var FX = ['polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified', 'stack', 'scatter', 'tree', 'ring'];
   var currentFx = 'polaroid';
   var carIndex = 0;
   var carTimer = null;
   var coverIndex = 0;
   var stackIndex = 0;
+  var autoFxOn = false;
+  var autoFxTimer = null;
+  var autoFxIndex = 0;
+  var ringAngle = 0;        // 圆环当前转角（度）
+  var ringFocus = -1;       // 被点中的那张下标，-1 表示没点中
+  var ringRotating = false; // 是否正在自动转
+  var ringRaf = null;
   var me = null;
 
   function api(path, opts) {
@@ -74,13 +81,15 @@
   function applyFx(fx) {
     if (FX.indexOf(fx) < 0) fx = 'polaroid';
     currentFx = fx;
-    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry', 'fx-coverflow', 'fx-justified', 'fx-stack', 'fx-scatter', 'fx-tree');
+    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry', 'fx-coverflow', 'fx-justified', 'fx-stack', 'fx-scatter', 'fx-tree', 'fx-ring');
     gallery.classList.add('fx-' + fx);
-    carouselBar.style.display = (fx === 'carousel' || fx === 'coverflow' || fx === 'stack') ? 'flex' : 'none';
-    document.querySelectorAll('#fx-picker .fx-btn').forEach(function (b) {
+    carouselBar.style.display = (fx === 'carousel' || fx === 'coverflow' || fx === 'stack' || fx === 'ring') ? 'flex' : 'none';
+    $('car-toggle').style.display = fx === 'ring' ? '' : 'none';
+    document.querySelectorAll('#fx-picker .fx-btn[data-fx]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-fx') === fx);
     });
     stopAuto();
+    ringStop();
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
@@ -93,8 +102,12 @@
       layoutStack();
     } else if (fx === 'scatter') {
       layoutScatter();
+    } else if (fx === 'ring') {
+      ringFocus = -1;
+      ringStart();
+      layoutRing();
     } else {
-      // 其他效果下，把轮播/封面流/堆叠/扩散留下的行内样式清掉，卡片恢复正常流式布局。
+      // 其他效果下，把轮播/封面流/堆叠/扩散/环形留下的行内样式清掉，卡片恢复正常流式布局。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
         c.style.display = '';
         c.style.transform = '';
@@ -102,6 +115,7 @@
         c.style.zIndex = '';
         c.style.left = '';
         c.style.top = '';
+        c.classList.remove('ring-focus');
       });
       gallery.style.height = '';
     }
@@ -145,7 +159,98 @@
     }
   }, true);
 
-  /* 扩散：按下标算一个固定的随机位置和角度，像随手撒在桌上（同一组照片每次位置一样）。 */
+  /* 环形：照片排成一个 3D 圆环，自动慢慢转；点哪张，哪张转到正前方、变大，环停下。
+     半径按卡片宽和张数算（CSS 3D Lab 的环形公式），太小会挤在一起、太大太散，都夹一下。
+     背过去的卡片用 backface-visibility 藏起来，只看得到前面半圈。 */
+  function ringRadius(n) {
+    var r = (260 / 2) / Math.tan(Math.PI / Math.max(n, 1));
+    return Math.max(260, Math.min(600, r));
+  }
+
+  function layoutRing() {
+    var list = cards();
+    if (!list.length) return;
+    var n = list.length;
+    var radius = ringRadius(n);
+    list.forEach(function (c, i) {
+      var angle = (i / n) * 360 + ringAngle;
+      var focused = (i === ringFocus);
+      c.style.display = '';
+      c.style.left = '';
+      c.style.top = '';
+      c.style.transform =
+        'rotateY(' + angle.toFixed(1) + 'deg) translateZ(' + radius + 'px)' +
+        (focused ? ' translateZ(90px) scale(1.28)' : '');
+      // 正前方的最清楚，越往两边越淡；背过去的靠 backface 藏。
+      var a = ((angle % 360) + 360) % 360;
+      var dist = Math.min(a, 360 - a) / 180; // 0=正前方，1=正后方
+      c.style.opacity = String(Math.max(0.25, 1 - dist * 0.75));
+      c.style.zIndex = String(100 - Math.round(dist * 100));
+      c.classList.toggle('ring-focus', focused);
+    });
+    var front = 0, best = 1e9;
+    list.forEach(function (c, i) {
+      var a = (((i / n) * 360 + ringAngle) % 360 + 360) % 360;
+      var d = Math.min(a, 360 - a);
+      if (d < best) { best = d; front = i; }
+    });
+    carCount.textContent = (ringFocus >= 0 ? ringFocus + 1 : front + 1) + ' / ' + n;
+    $('car-toggle').textContent = ringRotating ? '⏸ 暂停' : '▶️ 继续转';
+  }
+
+  function ringTick() {
+    if (!ringRotating || currentFx !== 'ring') { ringRaf = null; return; }
+    ringAngle = (ringAngle + 0.12) % 360; // 约 7 度/秒，转一圈约 50 秒
+    layoutRing();
+    ringRaf = requestAnimationFrame(ringTick);
+  }
+
+  function ringStart() {
+    if (ringRaf) return;
+    ringRotating = true;
+    ringRaf = requestAnimationFrame(ringTick);
+    $('car-toggle').textContent = '⏸ 暂停';
+  }
+  function ringStop() {
+    ringRotating = false;
+    if (ringRaf) { cancelAnimationFrame(ringRaf); ringRaf = null; }
+    $('car-toggle').textContent = '▶️ 继续转';
+  }
+
+  // 点一张：把它转到正前方、变大，环停下；再点一次正前方的那张才开灯箱。
+  function ringFocusPhoto(i) {
+    var list = cards();
+    if (!list.length) return;
+    var n = list.length;
+    ringFocus = (i + n) % n;
+    ringStop();
+    // 把这张转到正前方（角度 0），取最短的那条路转过去。
+    var target = -(ringFocus / n) * 360;
+    var diff = ((target - ringAngle) % 360 + 540) % 360 - 180;
+    ringAngle = (ringAngle + diff) % 360;
+    layoutRing();
+  }
+  function ringResume() {
+    ringFocus = -1;
+    ringStart();
+    layoutRing();
+  }
+
+  // 环形下点卡片：没点中的先聚焦（停下、变大）；已聚焦的放行给灯箱。
+  gallery.addEventListener('click', function (e) {
+    if (currentFx !== 'ring') return;
+    var card = e.target.closest('.photo-card');
+    if (!card) {
+      // 点空白处：继续转。
+      if (ringFocus >= 0) ringResume();
+      return;
+    }
+    var idx = cards().indexOf(card);
+    if (idx >= 0 && idx !== ringFocus) {
+      e.stopPropagation();
+      ringFocusPhoto(idx);
+    }
+  }, true);
   function layoutScatter() {
     var list = cards();
     if (!list.length) return;
@@ -230,20 +335,68 @@
     if (carTimer) { clearInterval(carTimer); carTimer = null; }
   }
 
+  /* 自动轮播效果：每 8 秒换一种展示效果，9 种轮一圈。只换着看，不改你保存的偏好；
+     手动点某个效果就停下来、听你的。切到后台标签页时暂停，回来再继续。 */
+  function startAutoFx() {
+    stopAutoFx();
+    autoFxOn = true;
+    autoFxIndex = FX.indexOf(currentFx);
+    if (autoFxIndex < 0) autoFxIndex = 0;
+    $('btn-autofx').textContent = '⏸ 停止轮播';
+    $('btn-autofx').classList.add('active');
+    autoFxTimer = setInterval(function () {
+      autoFxIndex = (autoFxIndex + 1) % FX.length;
+      applyFx(FX[autoFxIndex]);
+    }, 8000);
+  }
+  function stopAutoFx() {
+    if (autoFxTimer) { clearInterval(autoFxTimer); autoFxTimer = null; }
+    if (autoFxOn) {
+      autoFxOn = false;
+      $('btn-autofx').textContent = '▶️ 自动轮播';
+      $('btn-autofx').classList.remove('active');
+    }
+  }
+
+  $('btn-autofx').addEventListener('click', function () {
+    if (autoFxOn) stopAutoFx();
+    else startAutoFx();
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (!autoFxOn) return;
+    if (document.hidden) {
+      if (autoFxTimer) { clearInterval(autoFxTimer); autoFxTimer = null; }
+    } else {
+      autoFxTimer = setInterval(function () {
+        autoFxIndex = (autoFxIndex + 1) % FX.length;
+        applyFx(FX[autoFxIndex]);
+      }, 8000);
+    }
+  });
+
   $('car-prev').addEventListener('click', function () {
     if (currentFx === 'coverflow') coverGo(coverIndex - 1);
     else if (currentFx === 'stack') stackGo(stackIndex - 1);
+    else if (currentFx === 'ring') ringFocusPhoto((ringFocus >= 0 ? ringFocus : 0) - 1);
     else { showSlide(carIndex - 1); startAuto(); }
   });
   $('car-next').addEventListener('click', function () {
     if (currentFx === 'coverflow') coverGo(coverIndex + 1);
     else if (currentFx === 'stack') stackGo(stackIndex + 1);
+    else if (currentFx === 'ring') ringFocusPhoto((ringFocus >= 0 ? ringFocus : 0) + 1);
     else { showSlide(carIndex + 1); startAuto(); }
   });
+  $('car-toggle').addEventListener('click', function () {
+    if (currentFx !== 'ring') return;
+    if (ringRotating) ringStop();
+    else ringResume();
+  });
 
-  document.querySelectorAll('#fx-picker .fx-btn').forEach(function (b) {
+  document.querySelectorAll('#fx-picker .fx-btn[data-fx]').forEach(function (b) {
     b.addEventListener('click', function () {
       var fx = b.getAttribute('data-fx');
+      stopAutoFx();
       applyFx(fx);
       if (!me) return;
       api('/love/api/prefs', {
@@ -305,6 +458,7 @@
       if (currentFx === 'coverflow') layoutCoverflow();
       if (currentFx === 'stack') layoutStack();
       if (currentFx === 'scatter') layoutScatter();
+      if (currentFx === 'ring') { ringFocus = -1; layoutRing(); }
     }).catch(function () {
       updateGalleryEmpty();
     });
@@ -477,6 +631,7 @@
         if (currentFx === 'coverflow') layoutCoverflow();
         if (currentFx === 'stack') layoutStack();
         if (currentFx === 'scatter') layoutScatter();
+        if (currentFx === 'ring') { ringFocus = -1; layoutRing(); }
       })
       .catch(function (err) {
         $('upload-msg').textContent = err.message;

@@ -83,6 +83,8 @@
         <button type="button" data-fx="stack" class="fx-btn">🃏 堆叠</button>
         <button type="button" data-fx="scatter" class="fx-btn">✨ 扩散</button>
         <button type="button" data-fx="tree" class="fx-btn">🌳 记忆树</button>
+        <button type="button" data-fx="ring" class="fx-btn">⭕ 环形</button>
+        <button type="button" id="btn-autofx" class="fx-btn autofx-btn" title="每 8 秒自动换一种展示效果">▶️ 自动轮播</button>
       </div>
       <p class="hint">选一个喜欢的效果，会记在你的账户上，下次登录还是它。</p>
       <form id="form-upload" class="upload-form" enctype="multipart/form-data">
@@ -120,6 +122,7 @@
       <button type="button" id="car-prev" aria-label="上一张">‹</button>
       <span id="car-count">1 / 6</span>
       <button type="button" id="car-next" aria-label="下一张">›</button>
+      <button type="button" id="car-toggle" style="display:none">⏸ 暂停</button>
     </div>
   </div>
 
