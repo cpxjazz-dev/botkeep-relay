@@ -71,7 +71,7 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 
 - 登录后可在页面上上传图片（JPG / PNG / WebP / GIF，最大 5 MB），文件存到 Neon Object Storage 的 `uploads` 桶（路径风格，`s3.go` 自己算 SigV4 签名），元数据（上传者、文件名、说明、大小）记在 `love_photos` 表。
 - **图片会先压缩再存**：浏览器端用 canvas 先压到最长边 1600px、JPEG 质量 0.82 再传，服务端收到后也再压一遍（`image.go` 的 compressLoveImage，最长边 1600px、JPEG 质量 82，GIF 动图不动）；一张 3MB 的手机原图压完一般 200~400KB，加载快一个量级。
-- **画廊用缩略图**（2026-11-10）：上传时服务端再做一张最长边 400px、JPEG 质量 75 的缩略图（`image.go` 的 makeLoveThumbnail，`love_photos.thumb_object_key`，S3 键 `u<id>/thumb/...`），画廊只加载缩略图（每张 30~60KB），点开灯箱再用原图；老照片没有缩略图时前端用原图兜底；`<img>` 加了 `loading="lazy"`。
+- **画廊用缩略图**（2026-11-10）：上传时服务端再做一张最长边 800px、JPEG 质量 82 的缩略图（`image.go` 的 makeLoveThumbnail，`love_photos.thumb_object_key`，S3 键 `u<id>/thumb/...`），画廊只加载缩略图（每张 60~100KB），点开灯箱再用原图；老照片没有缩略图时前端用原图兜底；`<img>` 加了 `loading="lazy"`。800px 是为了手机高清屏（2~3 倍像素密度）：400px 在手机上看是糊的，800px 才够清晰。
 - 看图用 1 小时有效的预签名链接，浏览器直接从 S3 拉图。
 - 配置在 `.env.local`：`DATABASE_URL`（pooled，给应用流量）、`DATABASE_URL_UNPOOLED`（直连，给迁移）、`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（对象存储凭据）、`AWS_ENDPOINT_URL_S3`、`AWS_REGION`、`NEON_STORAGE_BUCKET`。
 

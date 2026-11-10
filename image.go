@@ -16,11 +16,13 @@ import (
 const loveMaxImageDim = 1600
 const loveJPEGQuality = 82
 
-// 缩略图最长边：画廊里卡片也就 260~300px 宽，400px 的缩略图足够清晰，
-// 一张一般只有 30~60KB，比 1600px 的原图小一个量级，画廊加载快得多。
+// 缩略图最长边：画廊里卡片也就 260~300px 宽，但手机是高清屏（2~3 倍像素密度），
+// 400px 的缩略图在手机上看就是糊的——260px 宽的卡片在 2 倍屏上要 520px、
+// 3 倍屏上要 780px 才清晰。800px 盖得住 3 倍屏，画廊里看和原图差不多，
+// 一张一般 60~100KB，比 1600px 的原图（约 200KB）还是小一半。
 // 灯箱点开看大图时再用原图。GIF 动图不生成缩略图（用原图）。
-const loveThumbDim = 400
-const loveThumbQuality = 75
+const loveThumbDim = 800
+const loveThumbQuality = 82
 
 // makeLoveThumbnail 给一张图做缩略图：最长边 400px、JPEG 质量 75。
 // 解不出来、GIF、或压完没更小都返回 nil（调用方用原图兜底）。
