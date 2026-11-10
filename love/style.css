@@ -245,12 +245,20 @@ body {
 .gallery.fx-grid .photo-card::before,
 .gallery.fx-grid .photo-card .heart-badge { display: none; }
 .gallery.fx-grid .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
-/* 瀑布流：多列、按原比例、不裁切 */
-.gallery.fx-masonry { display: block; columns: 3 220px; column-gap: 20px; }
-.gallery.fx-masonry .photo-card {
-  break-inside: avoid; margin: 0 0 20px; padding: 10px 10px 14px;
+/* 瀑布流：网格式瀑布（grid-auto-rows: 10px + JS 按图片比例算跨行数）。
+   以前用 CSS 多列（columns）在固定高度滚动区里会断列：超出的列横向挤出去、
+   被 overflow-x: hidden 截掉，照片直接看不见。所以改成网格，滚动区里正常竖着排。 */
+.gallery.fx-masonry {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-auto-rows: 10px;
+  gap: 16px;
 }
-.gallery.fx-masonry .photo-card img { aspect-ratio: auto; }
+.gallery.fx-masonry .photo-card {
+  margin: 0; padding: 10px 10px 14px;
+  grid-row-end: span 30; /* 默认值，JS 按图片比例改 */
+}
+.gallery.fx-masonry .photo-card img { aspect-ratio: auto; height: auto; }
 .gallery.fx-masonry .photo-card::before,
 .gallery.fx-masonry .photo-card .heart-badge { display: none; }
 .gallery.fx-masonry .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
@@ -344,41 +352,30 @@ body {
   box-shadow: 0 22px 44px rgba(120, 40, 70, .35);
   z-index: 50 !important;
 }
-/* 记忆树：中间一条主干，照片左右交错长在枝头上，枝节处一颗爱心。 */
+/* 记忆树：照片像挂件一样挂在树上。树干和树枝是 app.js 画的 SVG（.tree-art），
+   照片按三角形排成树冠，每张上面有一根挂绳（::before），微微歪着挂。
+   画廊高度由 JS 按照片行数算；overflow: hidden 把树收在容器里。 */
 .gallery.fx-tree {
-  display: block; position: relative; padding: 12px 0 24px;
+  display: block; position: relative;
+  overflow: hidden; isolation: isolate;
 }
-.gallery.fx-tree::before {
-  content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 3px;
-  background: linear-gradient(#e8a7bd, #c96f8f 60%, #e8a7bd);
-  transform: translateX(-50%); border-radius: 2px;
+.gallery.fx-tree .tree-art {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
 }
 .gallery.fx-tree .photo-card {
-  width: 280px; margin: 26px 0; position: relative; padding: 10px 10px 14px;
+  position: absolute; width: 150px; padding: 8px 8px 10px; z-index: 1;
 }
 .gallery.fx-tree .photo-card::before {
-  content: '💗'; position: absolute; top: calc(50% - 11px);
-  width: 22px; height: 22px; font-size: 15px; line-height: 22px; text-align: center;
-  background: #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(180, 80, 110, .3);
-  z-index: 2;
+  content: ''; position: absolute; left: 50%; top: -28px;
+  width: 2px; height: 28px; background: #c9a07a;
+  transform: translateX(-50%);
 }
-.gallery.fx-tree .photo-card::after {
-  content: ''; position: absolute; top: 50%; width: 22px; height: 2px;
-  background: #d89ab0;
-}
-.gallery.fx-tree .photo-card:nth-child(odd) { margin-left: calc(50% - 302px); }
-.gallery.fx-tree .photo-card:nth-child(odd)::before { right: -33px; }
-.gallery.fx-tree .photo-card:nth-child(odd)::after { right: -22px; }
-.gallery.fx-tree .photo-card:nth-child(even) { margin-left: calc(50% + 22px); }
-.gallery.fx-tree .photo-card:nth-child(even)::before { left: -33px; }
-.gallery.fx-tree .photo-card:nth-child(even)::after { left: -22px; }
+.gallery.fx-tree .photo-card img { aspect-ratio: 4/5; }
+.gallery.fx-tree .photo-card .heart-badge { display: none; }
+.gallery.fx-tree .photo-card:hover { transform: translate(-50%, -4px) rotate(0deg); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
 @media (max-width: 680px) {
-  .gallery.fx-tree::before { display: none; }
-  .gallery.fx-tree .photo-card,
-  .gallery.fx-tree .photo-card:nth-child(odd),
-  .gallery.fx-tree .photo-card:nth-child(even) { margin: 18px auto; }
-  .gallery.fx-tree .photo-card::before,
-  .gallery.fx-tree .photo-card::after { display: none; }
+  .gallery.fx-tree .photo-card { width: 118px; }
 }
 /* 环形：照片排成一个 3D 圆环，自动慢慢转；点哪张，哪张转到正前方、变大，环停下。
    位置由 app.js 按 ringAngle 算 transform；背过去的卡片藏起来（backface），带倒影。

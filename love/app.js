@@ -92,6 +92,11 @@
     ringStop();
     stopScroll();
     stopAdvance();
+    // 离开记忆树时把画的树干树枝也清掉。
+    if (fx !== 'tree') {
+      var art = gallery.querySelector('.tree-art');
+      if (art) art.remove();
+    }
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
@@ -106,6 +111,8 @@
       startAdvance();
     } else if (fx === 'scatter') {
       layoutScatter();
+    } else if (fx === 'tree') {
+      layoutTree();
     } else if (fx === 'ring') {
       ringFocus = -1;
       ringStart();
@@ -114,8 +121,7 @@
       // 网格/瀑布流/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走。
       gallery.scrollTop = 0;
       scrollDir = 1;
-      startScroll();
-      // 其他效果下，把轮播/封面流/堆叠/扩散/环形留下的行内样式清掉，卡片恢复正常流式布局。
+      // 其他效果下，把轮播/封面流/堆叠/扩散/环形/记忆树留下的行内样式清掉，卡片恢复正常流式布局。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
         c.style.display = '';
         c.style.transform = '';
@@ -123,11 +129,16 @@
         c.style.zIndex = '';
         c.style.left = '';
         c.style.top = '';
+        c.style.position = '';
+        c.style.width = '';
+        c.style.gridRowEnd = '';
         c.classList.remove('ring-focus');
       });
+      if (fx === 'masonry') layoutMasonry();
+      startScroll();
       gallery.style.height = '';
     } else {
-      // 其他效果下，把轮播/封面流/堆叠/扩散/环形留下的行内样式清掉，卡片恢复正常流式布局。
+      // 其他效果下，把轮播/封面流/堆叠/扩散/环形/记忆树留下的行内样式清掉，卡片恢复正常流式布局。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
         c.style.display = '';
         c.style.transform = '';
@@ -135,6 +146,9 @@
         c.style.zIndex = '';
         c.style.left = '';
         c.style.top = '';
+        c.style.position = '';
+        c.style.width = '';
+        c.style.gridRowEnd = '';
         c.classList.remove('ring-focus');
       });
       gallery.style.height = '';
@@ -296,6 +310,93 @@
     gallery.style.height = (Math.ceil(list.length / cols) * rowH + 60) + 'px';
   }
 
+  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 10px），
+     高矮不一的照片自然错落。图片没加载出来先按 4:3 估，加载完再重算。 */
+  function layoutMasonry() {
+    var list = cards();
+    if (!list.length) return;
+    list.forEach(function (c) {
+      var img = c.querySelector('img');
+      var w = c.clientWidth || 220;
+      var h;
+      if (img && img.naturalWidth > 0) {
+        h = w * (img.naturalHeight / img.naturalWidth);
+      } else {
+        h = w * 1.33;
+      }
+      // 卡片总高 ≈ 图片高 + 上下内边距 24px + 标题约 22px；行高 10px。
+      var span = Math.max(10, Math.ceil((h + 46) / 10));
+      c.style.gridRowEnd = 'span ' + span;
+    });
+  }
+
+  /* 记忆树：照片像挂件一样挂在树上。按 1、2、3、4… 的行排成三角形树冠，
+     每张上面一根挂绳；树干和树枝是画在下面的 SVG（.tree-art）。 */
+  function drawTreeArt(W, H) {
+    var svg = gallery.querySelector('.tree-art');
+    if (!svg) {
+      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('class', 'tree-art');
+      svg.setAttribute('aria-hidden', 'true');
+      gallery.insertBefore(svg, gallery.firstChild);
+    }
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var cx = W / 2;
+    var trunkTop = H - 110;
+    var s = '';
+    // 树干：下面宽、上面窄。
+    s += '<path d="M' + (cx - 15) + ' ' + H + ' L' + (cx - 8) + ' ' + trunkTop + ' L' + (cx + 8) + ' ' + trunkTop + ' L' + (cx + 15) + ' ' + H + ' Z" fill="#8b5e3c"/>';
+    // 主枝：从树干顶端分出几条，伸向树冠。
+    var branches = [
+      [cx, trunkTop, cx - W * 0.30, H * 0.32],
+      [cx, trunkTop, cx + W * 0.30, H * 0.32],
+      [cx, trunkTop, cx, H * 0.10],
+      [cx, trunkTop, cx - W * 0.40, H * 0.55],
+      [cx, trunkTop, cx + W * 0.40, H * 0.55]
+    ];
+    branches.forEach(function (b) {
+      var mx = (b[0] + b[2]) / 2, my = (b[1] + b[3]) / 2 - 24;
+      s += '<path d="M' + b[0] + ' ' + b[1] + ' Q' + mx + ' ' + my + ' ' + b[2] + ' ' + b[3] + '" stroke="#8b5e3c" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    });
+    // 几片淡淡的花瓣点缀枝头。
+    s += '<circle cx="' + (cx - W * 0.30) + '" cy="' + (H * 0.32) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
+    s += '<circle cx="' + (cx + W * 0.30) + '" cy="' + (H * 0.32) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
+    s += '<circle cx="' + cx + '" cy="' + (H * 0.10) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
+    svg.innerHTML = s;
+  }
+  function layoutTree() {
+    var list = cards();
+    if (!list.length) return;
+    var W = gallery.clientWidth || 600;
+    var cardW = window.innerWidth < 680 ? 118 : 150;
+    var rowH = 200;
+    var rows = [];
+    var i = 0, n = 1;
+    while (i < list.length) {
+      rows.push(list.slice(i, i + n));
+      i += n; n++;
+    }
+    var H = rows.length * rowH + 130; // 底部留树干
+    gallery.style.height = H + 'px';
+    drawTreeArt(W, H);
+    rows.forEach(function (row, r) {
+      var y = 44 + r * rowH;
+      row.forEach(function (c, k) {
+        var x;
+        if (row.length === 1) x = W / 2;
+        else x = (W * 0.10) + (k * (W * 0.80) / (row.length - 1));
+        c.style.position = 'absolute';
+        c.style.width = cardW + 'px';
+        c.style.left = x + 'px';
+        c.style.top = y + 'px';
+        c.style.display = '';
+        c.style.opacity = '';
+        c.style.zIndex = '';
+        c.style.transform = 'translate(-50%, 0) rotate(' + (((r * 7 + k * 13) % 11) - 5) + 'deg)';
+      });
+    });
+  }
+
   /* 封面流：按 active 下标排 3D 扇形（参考 Addy Osmani 的 Cover Flow 与 CSS 3D Lab 的做法）。
      中间那张正对着你，两边依次往后退、往外倾斜、变淡。 */
   function layoutCoverflow() {
@@ -433,6 +534,21 @@
         $('upload-msg').textContent = '效果已切换，但保存失败：' + e.message;
       });
     });
+  });
+
+  /* 窗口大小变了（比如手机横竖屏切换），跟画廊宽度有关的几种效果要重排，
+     不然记忆树、瀑布流这些会错位。防抖 200ms，别转一下就狂算。 */
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      if (currentFx === 'coverflow') layoutCoverflow();
+      else if (currentFx === 'stack') layoutStack();
+      else if (currentFx === 'scatter') layoutScatter();
+      else if (currentFx === 'masonry') layoutMasonry();
+      else if (currentFx === 'tree') layoutTree();
+      else if (currentFx === 'ring') layoutRing();
+    }, 200);
   });
 
   /* ---------- 账户 ---------- */
@@ -621,17 +737,19 @@
     var d = document.createElement('div');
     d.className = 'photo-card uploaded';
     var img = document.createElement('img');
-    // 画廊只加载 400px 的缩略图（thumb_url），原图留给灯箱，加载快得多；
+    // 画廊只加载 800px 的缩略图（thumb_url），原图留给灯箱，加载快得多；
     // 老照片没有缩略图时用原图兜底。
     img.src = p.thumb_url || p.url;
     img.dataset.full = p.url;
     img.alt = p.caption || p.filename;
     img.loading = 'lazy';
     // 满幅行需要宽高比：图片加载后把 --ar 写到卡片上。
+    // 瀑布流也需要真实比例：加载完重算跨行数。
     var setAr = function () {
       if (img.naturalWidth && img.naturalHeight) {
         d.style.setProperty('--ar', (img.naturalWidth / img.naturalHeight).toFixed(2));
       }
+      if (currentFx === 'masonry') layoutMasonry();
     };
     if (img.complete) setAr();
     else img.addEventListener('load', setAr);
@@ -679,6 +797,8 @@
         if (currentFx === 'coverflow') layoutCoverflow();
         if (currentFx === 'stack') layoutStack();
         if (currentFx === 'scatter') layoutScatter();
+        if (currentFx === 'masonry') layoutMasonry();
+        if (currentFx === 'tree') layoutTree();
         if (currentFx === 'ring') { ringFocus = -1; layoutRing(); }
       })
       .catch(function (err) {
