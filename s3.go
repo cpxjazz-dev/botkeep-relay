@@ -141,6 +141,61 @@ func (c *s3Config) s3PutObject(key, contentType string, body []byte) error {
 	return nil
 }
 
+// s3GetObject 从桶里取一个对象，返回内容和 content-type。给图片代理接口用
+// （浏览器不再直连 S3，改走服务器中转，加载更快更稳）。
+func (c *s3Config) s3GetObject(key string) ([]byte, string, error) {
+	now := time.Now().UTC()
+	amzDate := now.Format("20060102T150405Z")
+	host := strings.TrimPrefix(c.Endpoint, "https://")
+	host = strings.TrimPrefix(host, "http://")
+	uri := "/" + c.Bucket + "/" + encodePath(key)
+	// GET 请求体为空，payload 哈希是空串的 SHA-256。
+	payloadHash := "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	headers := map[string]string{
+		"host":                 host,
+		"x-amz-content-sha256": payloadHash,
+		"x-amz-date":           amzDate,
+	}
+	var names []string
+	for n := range headers {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	var canonHeaders strings.Builder
+	for _, n := range names {
+		canonHeaders.WriteString(n + ":" + strings.TrimSpace(headers[n]) + "\n")
+	}
+	signedHeaders := strings.Join(names, ";")
+	canonReq := strings.Join([]string{
+		"GET", uri, "", canonHeaders.String(), signedHeaders, payloadHash,
+	}, "\n")
+	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + c.scope(now) + "\n" + sha256Hex([]byte(canonReq))
+	sig := hex.EncodeToString(hmacSHA256(c.signingKey(now), []byte(stringToSign)))
+	auth := "AWS4-HMAC-SHA256 Credential=" + c.AccessKey + "/" + c.scope(now) +
+		", SignedHeaders=" + signedHeaders + ", Signature=" + sig
+
+	req, err := http.NewRequest(http.MethodGet, c.Endpoint+uri, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Authorization", auth)
+	req.Header.Set("X-Amz-Date", amzDate)
+	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("S3 拉取请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", fmt.Errorf("S3 拉取被拒 (HTTP %d): %s", resp.StatusCode, string(body))
+	}
+	return body, resp.Header.Get("Content-Type"), nil
+}
+
 // s3PresignGet 生成一个有时限的 GET 预签名链接，浏览器可直接打开看图。
 func (c *s3Config) s3PresignGet(key string, expires time.Duration) (string, error) {
 	now := time.Now().UTC()

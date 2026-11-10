@@ -693,6 +693,7 @@ func main() {
 	mux.HandleFunc("/love/api/prefs", handleLovePrefs)
 	mux.HandleFunc("/love/api/upload", handleLoveUpload)
 	mux.HandleFunc("/love/api/photos", handleLovePhotos)
+	mux.HandleFunc("/love/api/img", handleLoveImageProxy)
 	mux.HandleFunc("/love/api/users", handleLoveUsers)
 	mux.HandleFunc("/api/openids", handleOpenIDs)
 	mux.HandleFunc("/api/history", handleHistory)

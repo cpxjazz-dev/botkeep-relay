@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
@@ -447,6 +448,70 @@ type LovePhoto struct {
 	CreatedAt   string `json:"created_at"`
 }
 
+// loveProxyURL 把 S3 对象 key 变成走服务器中转的图片地址。
+// 浏览器不再直连 S3（手机到 Neon S3 的链路不稳、容易破图），改走服务器——
+// 服务器到 S3 是机房到机房、又快又稳；浏览器到服务器（尤其日本节点）
+// 也比直连 S3 稳。代理地址是同源的，没有过期时间，浏览器还能缓存。
+func loveProxyURL(key string) string {
+	return "/love/api/img?key=" + url.QueryEscape(key)
+}
+
+// handleLoveImageProxy：图片代理。登录后才能看，只能看自己的照片
+// （key 必须是 u<自己的ID>/ 开头），superadmin 能看任意人的。
+// 从 S3 拉出来原样返回，带一天的浏览器缓存。
+func handleLoveImageProxy(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 GET"})
+		return
+	}
+	if !loveDBReady(w) {
+		return
+	}
+	u := getSessionUser(r)
+	if u == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
+		return
+	}
+	if s3cfg == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "对象存储未配置"})
+		return
+	}
+	key := r.URL.Query().Get("key")
+	if key == "" || strings.Contains(key, "..") || strings.HasPrefix(key, "/") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "key 不合法"})
+		return
+	}
+	// key 格式是 u<用户ID>/... 或 u<用户ID>/thumb/...，从里面读出归属用户。
+	ownerID := -1
+	if strings.HasPrefix(key, "u") {
+		rest := key[1:]
+		i := 0
+		for i < len(rest) && rest[i] >= '0' && rest[i] <= '9' {
+			i++
+		}
+		if i > 0 && i < len(rest) && rest[i] == '/' {
+			fmt.Sscanf(rest[:i], "%d", &ownerID)
+		}
+	}
+	if ownerID < 0 || (ownerID != u.ID && !u.IsSuperadmin) {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "只能看自己的照片"})
+		return
+	}
+	body, ct, err := s3cfg.s3GetObject(key)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "图片不存在"})
+		return
+	}
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(body)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
+}
+
 func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "只接受 POST"})
@@ -540,18 +605,16 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 		ID: photoID, UserID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
 		Filename: filename, Caption: caption, ContentType: ct, SizeBytes: int64(len(data)),
 	}
-	if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
-		photo.URL = url
-	}
+	// 走服务器中转，不再发预签名链接（见 loveProxyURL）。
+	photo.URL = loveProxyURL(key)
 	if thumbKey != "" {
-		if url, err := s3cfg.s3PresignGet(thumbKey, time.Hour); err == nil {
-			photo.ThumbURL = url
-		}
+		photo.ThumbURL = loveProxyURL(thumbKey)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "photo": &photo})
 }
 
-// listLovePhotos 查照片并给每张配一个 1 小时有效的查看链接（原图 + 缩略图）。
+// listLovePhotos 查照片并给每张配一个走服务器中转的查看链接（原图 + 缩略图）。
+// 中转地址没有过期时间，浏览器还能缓存，比预签名链接稳。
 func listLovePhotos(userID *int, limit int) ([]LovePhoto, error) {
 	var rows *sql.Rows
 	var err error
@@ -582,13 +645,10 @@ func listLovePhotos(userID *int, limit int) ([]LovePhoto, error) {
 			return nil, err
 		}
 		if s3cfg != nil {
-			if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
-				p.URL = url
-			}
+			// 走服务器中转，不再发预签名链接（见 loveProxyURL）。
+			p.URL = loveProxyURL(key)
 			if thumbKey.Valid && thumbKey.String != "" {
-				if url, err := s3cfg.s3PresignGet(thumbKey.String, time.Hour); err == nil {
-					p.ThumbURL = url
-				}
+				p.ThumbURL = loveProxyURL(thumbKey.String)
 			}
 		}
 		photos = append(photos, p)
