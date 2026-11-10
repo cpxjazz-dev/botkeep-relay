@@ -310,28 +310,33 @@
     gallery.style.height = (Math.ceil(list.length / cols) * rowH + 60) + 'px';
   }
 
-  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 10px），
-     高矮不一的照片自然错落。图片没加载出来先按 4:3 估，加载完再重算。 */
+  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 8px），
+     高矮不一的照片自然错落。图片没加载出来先按 4:3 估，加载完再重算。
+     跨行数按真实尺寸算：图宽 = 卡片宽减掉左右内边距 20px，
+     标题高直接量 .cap 的 offsetHeight，别估——估大了卡片底下就留空。 */
   function layoutMasonry() {
     var list = cards();
     if (!list.length) return;
     list.forEach(function (c) {
       var img = c.querySelector('img');
-      var w = c.clientWidth || 220;
-      var h;
+      var cap = c.querySelector('.cap');
+      var imgW = (c.clientWidth || 220) - 20;
+      var imgH;
       if (img && img.naturalWidth > 0) {
-        h = w * (img.naturalHeight / img.naturalWidth);
+        imgH = imgW * (img.naturalHeight / img.naturalWidth);
       } else {
-        h = w * 1.33;
+        imgH = imgW * 1.33;
       }
-      // 卡片总高 ≈ 图片高 + 上下内边距 24px + 标题约 22px；行高 10px。
-      var span = Math.max(10, Math.ceil((h + 46) / 10));
+      var capH = cap ? cap.offsetHeight : 0;
+      var span = Math.max(10, Math.ceil((imgH + capH + 24 + 2) / 8));
       c.style.gridRowEnd = 'span ' + span;
     });
   }
 
   /* 记忆树：照片像挂件一样挂在树上。按 1、2、3、4… 的行排成三角形树冠，
-     每张上面一根挂绳；树干和树枝是画在下面的 SVG（.tree-art）。 */
+     每张上面一根挂绳；树干和树枝是画在下面的 SVG（.tree-art）。
+     每行封顶（电脑 6 张、手机 4 张），不然 50 张照片时底下那行宽得摆不下、
+     树也高得没法看；封顶后多出来的照片往下另起一行，树变高、页面能滚。 */
   function drawTreeArt(W, H) {
     var svg = gallery.querySelector('.tree-art');
     if (!svg) {
@@ -368,19 +373,22 @@
     var list = cards();
     if (!list.length) return;
     var W = gallery.clientWidth || 600;
-    var cardW = window.innerWidth < 680 ? 118 : 150;
-    var rowH = 200;
+    var isMobile = window.innerWidth < 680;
+    var cardW = isMobile ? 80 : 100;
+    var maxPerRow = isMobile ? 4 : 6;
+    var rowH = isMobile ? 130 : 150;
     var rows = [];
     var i = 0, n = 1;
     while (i < list.length) {
       rows.push(list.slice(i, i + n));
-      i += n; n++;
+      i += n;
+      if (n < maxPerRow) n++;
     }
     var H = rows.length * rowH + 130; // 底部留树干
     gallery.style.height = H + 'px';
     drawTreeArt(W, H);
     rows.forEach(function (row, r) {
-      var y = 44 + r * rowH;
+      var y = 40 + r * rowH;
       row.forEach(function (c, k) {
         var x;
         if (row.length === 1) x = W / 2;

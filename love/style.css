@@ -251,8 +251,8 @@ body {
 .gallery.fx-masonry {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  grid-auto-rows: 10px;
-  gap: 16px;
+  grid-auto-rows: 8px; /* 行高越小，跨行数算得越贴，卡片底下的空隙越少 */
+  gap: 12px;
 }
 .gallery.fx-masonry .photo-card {
   margin: 0; padding: 10px 10px 14px;
@@ -364,18 +364,20 @@ body {
   pointer-events: none; z-index: 0;
 }
 .gallery.fx-tree .photo-card {
-  position: absolute; width: 150px; padding: 8px 8px 10px; z-index: 1;
+  position: absolute; width: 100px; padding: 6px 6px 8px; z-index: 1;
 }
 .gallery.fx-tree .photo-card::before {
-  content: ''; position: absolute; left: 50%; top: -28px;
-  width: 2px; height: 28px; background: #c9a07a;
+  content: ''; position: absolute; left: 50%; top: -24px;
+  width: 2px; height: 24px; background: #c9a07a;
   transform: translateX(-50%);
 }
 .gallery.fx-tree .photo-card img { aspect-ratio: 4/5; }
+/* 树上不显示话语，只留照片；点大后灯箱里再看话语。 */
+.gallery.fx-tree .photo-card .cap { display: none; }
 .gallery.fx-tree .photo-card .heart-badge { display: none; }
 .gallery.fx-tree .photo-card:hover { transform: translate(-50%, -4px) rotate(0deg); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
 @media (max-width: 680px) {
-  .gallery.fx-tree .photo-card { width: 118px; }
+  .gallery.fx-tree .photo-card { width: 80px; }
 }
 /* 环形：照片排成一个 3D 圆环，自动慢慢转；点哪张，哪张转到正前方、变大，环停下。
    位置由 app.js 按 ringAngle 算 transform；背过去的卡片藏起来（backface），带倒影。
