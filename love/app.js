@@ -92,11 +92,9 @@
     ringStop();
     stopScroll();
     stopAdvance();
-    // 离开记忆树时把画的树干树枝也清掉。
-    if (fx !== 'tree') {
-      var art = gallery.querySelector('.tree-art');
-      if (art) art.remove();
-    }
+    stopMasonryScroll();
+    // 离开瀑布流时把两列拆掉、卡片放回画廊根上。
+    if (fx !== 'masonry') teardownMasonryCols();
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
@@ -117,8 +115,25 @@
       ringFocus = -1;
       ringStart();
       layoutRing();
-    } else if (fx === 'grid' || fx === 'masonry' || fx === 'justified') {
-      // 网格/瀑布流/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走。
+    } else if (fx === 'masonry') {
+      // 瀑布流：双列对向滚动。先清掉别的样式，再把卡片分进两列、开始对向滚动。
+      gallery.querySelectorAll('.photo-card').forEach(function (c) {
+        c.style.display = '';
+        c.style.transform = '';
+        c.style.opacity = '';
+        c.style.zIndex = '';
+        c.style.left = '';
+        c.style.top = '';
+        c.style.position = '';
+        c.style.width = '';
+        c.style.gridRowEnd = '';
+        c.classList.remove('ring-focus');
+      });
+      gallery.style.height = '';
+      buildMasonryCols();
+      startMasonryScroll();
+    } else if (fx === 'grid' || fx === 'justified') {
+      // 网格/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走。
       gallery.scrollTop = 0;
       scrollDir = 1;
       // 其他效果下，把轮播/封面流/堆叠/扩散/环形/记忆树留下的行内样式清掉，卡片恢复正常流式布局。
@@ -134,7 +149,6 @@
         c.style.gridRowEnd = '';
         c.classList.remove('ring-focus');
       });
-      if (fx === 'masonry') layoutMasonry();
       startScroll();
       gallery.style.height = '';
     } else {
@@ -310,99 +324,87 @@
     gallery.style.height = (Math.ceil(list.length / cols) * rowH + 60) + 'px';
   }
 
-  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 8px、间距 12px），
-     高矮不一的照片自然错落。图片没加载出来先按 4:3 估，加载完再重算。
-     跨行数按真实尺寸算：图宽 = 卡片宽减掉左右内边距 20px，
-     标题高直接量 .cap 的 offsetHeight，别估——估大了卡片底下就留空。
-     注意公式要算上行间距：N 行占 N*8 + (N-1)*12，
-     所以 N = ceil((内容高 + 12) / 20)，直接除以 8 会把卡片算高两倍多。 */
-  function layoutMasonry() {
+  /* 瀑布流（双列对向滚动）：照片按奇偶分进左右两列，左列往上、右列往下，
+     到头了再往回走，像电影开头两条片花对着转。用户动手就停 4 秒。 */
+  var masonryRaf = null;
+  var masonryPausedUntil = 0;
+  var masonryDirL = 1, masonryDirR = -1;
+  function buildMasonryCols() {
+    teardownMasonryCols();
     var list = cards();
     if (!list.length) return;
-    list.forEach(function (c) {
-      var img = c.querySelector('img');
-      var cap = c.querySelector('.cap');
-      var imgW = (c.clientWidth || 220) - 20;
-      var imgH;
-      if (img && img.naturalWidth > 0) {
-        imgH = imgW * (img.naturalHeight / img.naturalWidth);
-      } else {
-        imgH = imgW * 1.33;
-      }
-      var capH = cap ? cap.offsetHeight : 0;
-      var span = Math.max(1, Math.ceil((imgH + capH + 24 + 12) / 20));
-      c.style.gridRowEnd = 'span ' + span;
+    var left = document.createElement('div');
+    left.className = 'masonry-col';
+    var right = document.createElement('div');
+    right.className = 'masonry-col';
+    list.forEach(function (c, i) {
+      if (i % 2 === 0) left.appendChild(c);
+      else right.appendChild(c);
     });
+    gallery.appendChild(left);
+    gallery.appendChild(right);
+    // 右列先从中间往下走，左列从顶往上走，两边错开。
+    right.scrollTop = Math.max(0, (right.scrollHeight - right.clientHeight) / 2);
+    left.scrollTop = 0;
+    masonryDirL = 1; masonryDirR = -1;
   }
+  function teardownMasonryCols() {
+    stopMasonryScroll();
+    var cols = gallery.querySelectorAll('.masonry-col');
+    if (!cols.length) return;
+    // 把卡片放回画廊根上（恢复原顺序），再拆掉两列。
+    var back = [];
+    cols.forEach(function (col) {
+      Array.prototype.slice.call(col.children).forEach(function (c) {
+        back.push(c);
+      });
+    });
+    back.forEach(function (c) { gallery.appendChild(c); });
+    cols.forEach(function (col) { col.remove(); });
+  }
+  function masonryScrollTick() {
+    if (currentFx !== 'masonry') { masonryRaf = null; return; }
+    var cols = gallery.querySelectorAll('.masonry-col');
+    if (cols.length < 2) { masonryRaf = null; return; }
+    if (Date.now() < masonryPausedUntil) {
+      masonryRaf = requestAnimationFrame(masonryScrollTick); return;
+    }
+    var left = cols[0], right = cols[1];
+    [ [left, 'L'], [right, 'R'] ].forEach(function (pair) {
+      var col = pair[0], side = pair[1];
+      var max = col.scrollHeight - col.clientHeight;
+      if (max <= 0) return;
+      var dir = side === 'L' ? masonryDirL : masonryDirR;
+      var next = col.scrollTop + dir * 0.6; // 约 36px/秒
+      if (next >= max) { next = max; if (side === 'L') masonryDirL = -1; else masonryDirR = -1; }
+      if (next <= 0) { next = 0; if (side === 'L') masonryDirL = 1; else masonryDirR = 1; }
+      col.scrollTop = next;
+    });
+    masonryRaf = requestAnimationFrame(masonryScrollTick);
+  }
+  function startMasonryScroll() {
+    if (masonryRaf) return;
+    masonryRaf = requestAnimationFrame(masonryScrollTick);
+  }
+  function stopMasonryScroll() {
+    if (masonryRaf) { cancelAnimationFrame(masonryRaf); masonryRaf = null; }
+  }
+  // 在列上动手就暂停双列滚动 4 秒。
+  gallery.addEventListener('wheel', function (e) {
+    if (currentFx === 'masonry' && e.target.closest('.masonry-col')) {
+      masonryPausedUntil = Date.now() + 4000;
+    }
+  }, { passive: true });
+  gallery.addEventListener('touchstart', function (e) {
+    if (currentFx === 'masonry' && e.target.closest('.masonry-col')) {
+      masonryPausedUntil = Date.now() + 4000;
+    }
+  }, { passive: true });
 
-  /* 记忆树：照片像挂件一样挂在树上。按 1、2、3、4… 的行排成三角形树冠，
-     每张上面一根挂绳；树干和树枝是画在下面的 SVG（.tree-art）。
+  /* 记忆树：照片像挂件一样挂在樱花树背景图上。按 1、2、3、4… 的行排成三角形树冠，
+     每张上面一根挂绳。背景图在 CSS 里（love/tree-bg.jpg）。
      每行封顶（电脑 6 张、手机 4 张），不然 50 张照片时底下那行宽得摆不下、
      树也高得没法看；封顶后多出来的照片往下另起一行，树变高、页面能滚。 */
-  /* 一团樱花：几个粉色小圆叠成花簇，中间一点深粉花心。 */
-  function blossomCluster(cx, cy, r) {
-    var s = '';
-    var petals = [
-      [0, 0], [0.7, 0.35], [-0.65, 0.4], [0.3, -0.7], [-0.4, -0.65],
-      [0.85, -0.35], [-0.85, -0.25], [0.15, 0.75], [-0.2, 0.7]
-    ];
-    petals.forEach(function (p, idx) {
-      var x = cx + p[0] * r, y = cy + p[1] * r;
-      var rad = r * (0.42 - (idx % 3) * 0.06);
-      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + rad.toFixed(1) + '" fill="#f7c6d4" opacity="0.9"/>';
-    });
-    s += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (r * 0.15).toFixed(1) + '" fill="#e78ba8" opacity="0.8"/>';
-    return s;
-  }
-  function drawTreeArt(W, H) {
-    var svg = gallery.querySelector('.tree-art');
-    if (!svg) {
-      svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('class', 'tree-art');
-      svg.setAttribute('aria-hidden', 'true');
-      gallery.insertBefore(svg, gallery.firstChild);
-    }
-    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    var cx = W / 2;
-    var trunkTop = H - 110;
-    var s = '';
-    // 地面阴影：一片淡淡的椭圆，树站得稳。
-    s += '<ellipse cx="' + cx + '" cy="' + (H - 4) + '" rx="' + (W * 0.28).toFixed(1) + '" ry="10" fill="#e8b4c4" opacity="0.35"/>';
-    // 树干：微微弯曲，根部宽、顶部窄，深棕色。
-    s += '<path d="M' + (cx - 15) + ' ' + H
-      + ' C' + (cx - 13) + ' ' + (H - 45) + ' ' + (cx - 11) + ' ' + (trunkTop + 45) + ' ' + (cx - 7) + ' ' + trunkTop
-      + ' L' + (cx + 7) + ' ' + trunkTop
-      + ' C' + (cx + 11) + ' ' + (trunkTop + 45) + ' ' + (cx + 13) + ' ' + (H - 45) + ' ' + (cx + 15) + ' ' + H
-      + ' Z" fill="#7a4a2b"/>';
-    // 主枝：优雅的弧线，越往梢越细。
-    var branches = [
-      [cx, trunkTop, cx - W * 0.16, trunkTop - 35, cx - W * 0.30, H * 0.34, 5],
-      [cx, trunkTop, cx + W * 0.16, trunkTop - 35, cx + W * 0.30, H * 0.34, 5],
-      [cx, trunkTop, cx - W * 0.04, trunkTop - 55, cx, H * 0.10, 5],
-      [cx, trunkTop, cx - W * 0.26, trunkTop - 12, cx - W * 0.40, H * 0.54, 4],
-      [cx, trunkTop, cx + W * 0.26, trunkTop - 12, cx + W * 0.40, H * 0.54, 4],
-      [cx - W * 0.16, trunkTop - 30, cx - W * 0.24, trunkTop - 55, cx - W * 0.20, H * 0.22, 3],
-      [cx + W * 0.16, trunkTop - 30, cx + W * 0.24, trunkTop - 55, cx + W * 0.20, H * 0.22, 3]
-    ];
-    branches.forEach(function (b) {
-      s += '<path d="M' + b[0] + ' ' + b[1] + ' Q' + b[2] + ' ' + b[3] + ' ' + b[4] + ' ' + b[5]
-        + '" stroke="#7a4a2b" stroke-width="' + b[6] + '" fill="none" stroke-linecap="round"/>';
-    });
-    // 花簇：在枝头和树冠处开几团樱花，树一下就满了。
-    var clusters = [
-      [cx - W * 0.30, H * 0.34, 26], [cx + W * 0.30, H * 0.34, 26], [cx, H * 0.10, 28],
-      [cx - W * 0.40, H * 0.54, 22], [cx + W * 0.40, H * 0.54, 22],
-      [cx - W * 0.20, H * 0.22, 20], [cx + W * 0.20, H * 0.22, 20],
-      [cx - W * 0.12, H * 0.42, 18], [cx + W * 0.12, H * 0.42, 18]
-    ];
-    clusters.forEach(function (cl) {
-      s += blossomCluster(cl[0], cl[1], cl[2]);
-    });
-    // 几片飘落的花瓣。
-    s += '<ellipse cx="' + (cx - W * 0.18).toFixed(1) + '" cy="' + (H * 0.62).toFixed(1) + '" rx="5" ry="3" fill="#f7c6d4" opacity="0.7" transform="rotate(30 ' + (cx - W * 0.18).toFixed(1) + ' ' + (H * 0.62).toFixed(1) + ')"/>';
-    s += '<ellipse cx="' + (cx + W * 0.22).toFixed(1) + '" cy="' + (H * 0.70).toFixed(1) + '" rx="5" ry="3" fill="#f7c6d4" opacity="0.7" transform="rotate(-25 ' + (cx + W * 0.22).toFixed(1) + ' ' + (H * 0.70).toFixed(1) + ')"/>';
-    svg.innerHTML = s;
-  }
   function layoutTree() {
     var list = cards();
     if (!list.length) return;
@@ -420,7 +422,6 @@
     }
     var H = rows.length * rowH + 130; // 底部留树干
     gallery.style.height = H + 'px';
-    drawTreeArt(W, H);
     rows.forEach(function (row, r) {
       var y = 40 + r * rowH;
       row.forEach(function (c, k) {
@@ -500,10 +501,11 @@
     if (carTimer) { clearInterval(carTimer); carTimer = null; }
   }
 
-  /* 网格/瀑布流/满幅行：上下自动滚动，来回走。画廊是个固定高度的滚动区，
-     慢慢往下走，到底了再慢慢往上走；用户一动手（滚轮/触摸/点）就停 4 秒再继续。 */
+  /* 网格/满幅行：上下自动滚动，来回走。画廊是个固定高度的滚动区，
+     慢慢往下走，到底了再慢慢往上走；用户一动手（滚轮/触摸/点）就停 4 秒再继续。
+     瀑布流是双列对向滚动，不走这里（有自己的 masonryScrollTick）。 */
   function scrollTick() {
-    if (currentFx !== 'grid' && currentFx !== 'masonry' && currentFx !== 'justified') {
+    if (currentFx !== 'grid' && currentFx !== 'justified') {
       scrollRaf = null; return;
     }
     if (Date.now() < scrollPausedUntil) {
@@ -587,7 +589,7 @@
       if (currentFx === 'coverflow') layoutCoverflow();
       else if (currentFx === 'stack') layoutStack();
       else if (currentFx === 'scatter') layoutScatter();
-      else if (currentFx === 'masonry') layoutMasonry();
+      else if (currentFx === 'masonry') { buildMasonryCols(); startMasonryScroll(); }
       else if (currentFx === 'tree') layoutTree();
       else if (currentFx === 'ring') layoutRing();
     }, 200);
@@ -786,12 +788,10 @@
     img.alt = p.caption || p.filename;
     img.loading = 'lazy';
     // 满幅行需要宽高比：图片加载后把 --ar 写到卡片上。
-    // 瀑布流也需要真实比例：加载完重算跨行数。
     var setAr = function () {
       if (img.naturalWidth && img.naturalHeight) {
         d.style.setProperty('--ar', (img.naturalWidth / img.naturalHeight).toFixed(2));
       }
-      if (currentFx === 'masonry') layoutMasonry();
     };
     if (img.complete) setAr();
     else img.addEventListener('load', setAr);
@@ -839,7 +839,7 @@
         if (currentFx === 'coverflow') layoutCoverflow();
         if (currentFx === 'stack') layoutStack();
         if (currentFx === 'scatter') layoutScatter();
-        if (currentFx === 'masonry') layoutMasonry();
+        if (currentFx === 'masonry') { buildMasonryCols(); startMasonryScroll(); }
         if (currentFx === 'tree') layoutTree();
         if (currentFx === 'ring') { ringFocus = -1; layoutRing(); }
       })

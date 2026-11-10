@@ -245,18 +245,23 @@ body {
 .gallery.fx-grid .photo-card::before,
 .gallery.fx-grid .photo-card .heart-badge { display: none; }
 .gallery.fx-grid .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
-/* 瀑布流：网格式瀑布（grid-auto-rows: 10px + JS 按图片比例算跨行数）。
-   以前用 CSS 多列（columns）在固定高度滚动区里会断列：超出的列横向挤出去、
-   被 overflow-x: hidden 截掉，照片直接看不见。所以改成网格，滚动区里正常竖着排。 */
+/* 瀑布流：电影开头那种双列对向滚动——左列往上、右列往下，来回走。
+   画廊是左右两列（.masonry-col），每列 75vh 高、自己滚，滚动条藏起来；
+   照片按奇偶分进两列。滚动由 app.js 的 masonryScrollTick 推，
+   用户动手（滚轮/触摸）就停 4 秒。 */
 .gallery.fx-masonry {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  grid-auto-rows: 8px; /* 行高越小，跨行数算得越贴，卡片底下的空隙越少 */
-  gap: 12px;
+  display: flex; gap: 12px;
+  max-height: 75vh; overflow: hidden;
 }
+.gallery.fx-masonry .masonry-col {
+  flex: 1; min-width: 0;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.gallery.fx-masonry .masonry-col::-webkit-scrollbar { display: none; }
 .gallery.fx-masonry .photo-card {
-  margin: 0; padding: 10px 10px 14px;
-  grid-row-end: span 30; /* 默认值，JS 按图片比例改 */
+  margin: 0; padding: 10px 10px 14px; flex: none;
 }
 .gallery.fx-masonry .photo-card img { aspect-ratio: auto; height: auto; }
 .gallery.fx-masonry .photo-card::before,
@@ -268,7 +273,13 @@ body {
   max-width: 640px; margin: 0 auto; padding: 14px 14px 18px;
 }
 .gallery.fx-carousel .photo-card::before { display: none; }
-.gallery.fx-carousel .photo-card img { aspect-ratio: 4 / 3; }
+.gallery.fx-carousel .photo-card img {
+  /* 别定死 4:3——竖构图的人像照会被裁成宽条、看着发胖。
+     按原比例显示，只在 640px 宽和 62vh 高里缩放。 */
+  aspect-ratio: auto; width: auto; height: auto;
+  max-width: 100%; max-height: 62vh; margin: 0 auto;
+  object-fit: contain;
+}
 /* 封面流（Coverflow）：3D 扇形，中间那张正对着你，两边依次后退、倾斜、变淡。
    位置由 app.js 按 active 下标算 transform，容器给 perspective。
    overflow: hidden + isolation: isolate 把 3D 卡片收在容器里，不让它撑大页面、
@@ -352,24 +363,24 @@ body {
   box-shadow: 0 22px 44px rgba(120, 40, 70, .35);
   z-index: 50 !important;
 }
-/* 记忆树：照片像挂件一样挂在树上。树干和树枝是 app.js 画的 SVG（.tree-art），
-   照片按三角形排成树冠，每张上面有一根挂绳（::before），微微歪着挂。
-   画廊高度由 JS 按照片行数算；overflow: hidden 把树收在容器里。 */
+/* 记忆树：照片像挂件一样挂在樱花树上。背景是一张真的樱花树照片
+   （love/tree-bg.jpg），照片按三角形排成树冠挂在前面，每张上面一根挂绳，
+   微微歪着挂。画廊高度由 JS 按照片行数算；overflow: hidden 把内容收在容器里。 */
 .gallery.fx-tree {
   display: block; position: relative;
   overflow: hidden; isolation: isolate;
-}
-.gallery.fx-tree .tree-art {
-  position: absolute; inset: 0; width: 100%; height: 100%;
-  pointer-events: none; z-index: 0;
+  background-image: url('tree-bg.jpg');
+  background-size: cover; background-position: center;
+  border-radius: 16px;
 }
 .gallery.fx-tree .photo-card {
   position: absolute; width: 100px; padding: 6px 6px 8px; z-index: 1;
 }
 .gallery.fx-tree .photo-card::before {
   content: ''; position: absolute; left: 50%; top: -24px;
-  width: 2px; height: 24px; background: #c9a07a;
+  width: 2px; height: 24px; background: rgba(255, 255, 255, .9);
   transform: translateX(-50%);
+  box-shadow: 0 0 4px rgba(0, 0, 0, .2);
 }
 .gallery.fx-tree .photo-card img { aspect-ratio: 4/5; }
 /* 树上不显示话语，只留照片；点大后灯箱里再看话语。 */
