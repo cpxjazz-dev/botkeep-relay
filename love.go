@@ -262,9 +262,27 @@ func handleLoveLogin(w http.ResponseWriter, r *http.Request) {
 		 FROM love_users WHERE username = $1`,
 		input.Username,
 	).Scan(&u.ID, &u.Username, &u.DisplayName, &u.IsSuperadmin, &u.DisplayEffect, &u.CreatedAt, &hash)
-	if err != nil || !verifyPassword(input.Password, hash) {
+	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "用户名或密码不对"})
 		return
+	}
+	if !verifyPassword(input.Password, hash) {
+		// 老账户存的是明文密码的 PBKDF2，新版浏览器发来的是 SHA-256 哈希，
+		// 对不上是正常的——告诉浏览器走一次性迁移（只发一次明文密码，见下）。
+		if isLegacyPasswordHash(hash) && looksLikeClientHash(input.Password) {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "密码存储需要升级，请再登录一次完成升级", "code": "password_rehash_required"})
+			return
+		}
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "用户名或密码不对"})
+		return
+	}
+	// 老账户：如果这次发来的是明文密码且对上了，顺手迁到新格式
+	// （把明文转成浏览器会发的那份 SHA-256 哈希，再做 PBKDF2 存起来）。
+	// 以后这个账户登录就只发哈希，不再发明文。
+	if isLegacyPasswordHash(hash) && !looksLikeClientHash(input.Password) {
+		if newHash, err := hashPassword(clientPasswordHash(input.Username, input.Password)); err == nil {
+			db.Exec(`UPDATE love_users SET password_hash = $1 WHERE id = $2`, newHash, u.ID)
+		}
 	}
 	// 指定的 superadmin 账户登录时也确保是 superadmin。
 	ensureSuperadmin(u.Username)
@@ -482,6 +500,11 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "只支持 JPG、PNG、WebP、GIF 图片"})
 		return
 	}
+	// 先压再存：最长边 1600px、JPEG 质量 82，加载快一个量级。
+	// （GIF 动图和解不出来的原样存。）
+	filename := header.Filename
+	data, filename, ct = compressLoveImage(data, filename)
+	ext = extForContentType(ct)
 	caption := strings.TrimSpace(r.FormValue("caption"))
 	if len(caption) > 200 {
 		caption = caption[:200]
@@ -495,7 +518,7 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(
 		`INSERT INTO love_photos (user_id, object_key, filename, caption, content_type, size_bytes)
 		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		u.ID, key, header.Filename, caption, ct, len(data),
+		u.ID, key, filename, caption, ct, len(data),
 	).Scan(&photoID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "保存照片记录失败"})
@@ -503,7 +526,7 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	photo := LovePhoto{
 		ID: photoID, UserID: u.ID, Username: u.Username, DisplayName: u.DisplayName,
-		Filename: header.Filename, Caption: caption, ContentType: ct, SizeBytes: int64(len(data)),
+		Filename: filename, Caption: caption, ContentType: ct, SizeBytes: int64(len(data)),
 	}
 	if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
 		photo.URL = url

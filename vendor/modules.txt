@@ -10,3 +10,7 @@ github.com/lib/pq/internal/proto
 github.com/lib/pq/oid
 github.com/lib/pq/pqerror
 github.com/lib/pq/scram
+# golang.org/x/image v0.48.0
+## explicit; go 1.26.0
+golang.org/x/image/draw
+golang.org/x/image/math/f64

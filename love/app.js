@@ -27,6 +27,48 @@
 
   function $(id) { return document.getElementById(id); }
 
+  /* 密码先在浏览器里算 SHA-256 再发，请求里不再出现明文密码。
+     输入是「用户名 + 换行 + 密码」，不同用户同密码也不同。
+     服务端再对收到的哈希做 PBKDF2 存起来。 */
+  function hashPassword(username, password) {
+    var data = new TextEncoder().encode(username + '\n' + password);
+    return crypto.subtle.digest('SHA-256', data).then(function (digest) {
+      var bytes = new Uint8Array(digest);
+      var hex = '';
+      for (var i = 0; i < bytes.length; i++) {
+        hex += ('0' + bytes[i].toString(16)).slice(-2);
+      }
+      return hex;
+    });
+  }
+
+  /* 上传前先在浏览器里压图：最长边 1600px、JPEG 质量 0.82。
+     手机原图动不动几 MB，压完一般 200~400KB，上传和加载都快一个量级。
+     GIF 动图不动（压了就没动画了）；压完没更小就用原图。 */
+  function compressImage(file) {
+    if (file.type === 'image/gif') return Promise.resolve(file);
+    var url = URL.createObjectURL(file);
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () {
+        var maxDim = 1600;
+        var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(function (blob) {
+          URL.revokeObjectURL(url);
+          if (!blob || blob.size >= file.size) { resolve(file); return; }
+          var name = file.name.replace(/\.[^.]*$/, '') + '.jpg';
+          resolve(new File([blob], name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', 0.82);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+      img.src = url;
+    });
+  }
+
   /* ---------- 展示效果 ---------- */
 
   function applyFx(fx) {
@@ -288,15 +330,36 @@
   $('form-login').addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(e.target);
+    var username = String(fd.get('username') || '');
+    var password = String(fd.get('password') || '');
     $('auth-msg').textContent = '登录中…';
-    api('/love/api/login', {
-      method: 'POST',
-      body: JSON.stringify({ username: fd.get('username'), password: fd.get('password') }),
+    hashPassword(username, password).then(function (hash) {
+      return api('/love/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ username: username, password: hash }),
+      });
     }).then(function (j) {
       me = j.user;
       $('auth-msg').textContent = '';
       setAuthUI();
     }).catch(function (err) {
+      // 老账户存的是明文密码的哈希，新版只发 SHA-256 会对不上。
+      // 一次性迁移：把刚输的密码发一次（HTTPS 加密传输），服务端验证通过后
+      // 就把存库的哈希换成新格式，以后登录再也不发明文。
+      if (String(err.message).indexOf('需要升级') >= 0) {
+        $('auth-msg').textContent = '密码存储需要升级一次，正在用你刚输的密码完成升级…';
+        api('/love/api/login', {
+          method: 'POST',
+          body: JSON.stringify({ username: username, password: password }),
+        }).then(function (j) {
+          me = j.user;
+          $('auth-msg').textContent = '密码已升级到新格式，以后登录不再发送明文。';
+          setAuthUI();
+        }).catch(function (err2) {
+          $('auth-msg').textContent = err2.message;
+        });
+        return;
+      }
       $('auth-msg').textContent = err.message;
     });
   });
@@ -304,14 +367,17 @@
   $('form-register').addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(e.target);
+    var username = String(fd.get('username') || '');
     $('auth-msg').textContent = '注册中…';
-    api('/love/api/register', {
-      method: 'POST',
-      body: JSON.stringify({
-        username: fd.get('username'),
-        display_name: fd.get('display_name'),
-        password: fd.get('password'),
-      }),
+    hashPassword(username, String(fd.get('password') || '')).then(function (hash) {
+      return api('/love/api/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: username,
+          display_name: fd.get('display_name'),
+          password: hash,
+        }),
+      });
     }).then(function (j) {
       me = j.user;
       $('auth-msg').textContent = '注册成功，欢迎！';
@@ -331,9 +397,16 @@
   $('form-password').addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(e.target);
-    api('/love/api/password', {
-      method: 'POST',
-      body: JSON.stringify({ current: fd.get('current'), new: fd.get('new') }),
+    if (!me) { $('pwd-msg').textContent = '请先登录。'; return; }
+    var username = me.username;
+    Promise.all([
+      hashPassword(username, String(fd.get('current') || '')),
+      hashPassword(username, String(fd.get('new') || '')),
+    ]).then(function (hashes) {
+      return api('/love/api/password', {
+        method: 'POST',
+        body: JSON.stringify({ current: hashes[0], new: hashes[1] }),
+      });
     }).then(function () {
       $('pwd-msg').textContent = '密码已改，请重新登录。';
       me = null;
@@ -378,16 +451,23 @@
   $('form-upload').addEventListener('submit', function (e) {
     e.preventDefault();
     var fd = new FormData(e.target);
-    if (!fd.get('photo') || !fd.get('photo').size) {
+    var file = fd.get('photo');
+    if (!file || !file.size) {
       $('upload-msg').textContent = '请先选一张图片。';
       return;
     }
-    $('upload-msg').textContent = '上传中…';
-    fetch('/love/api/upload', { method: 'POST', body: fd })
-      .then(function (r) { return r.json().then(function (j) {
-        if (!r.ok) throw new Error(j.error || ('上传失败 HTTP ' + r.status));
-        return j;
-      }); })
+    $('upload-msg').textContent = '正在压缩图片…';
+    compressImage(file).then(function (small) {
+      var up = new FormData();
+      up.append('photo', small);
+      up.append('caption', fd.get('caption') || '');
+      $('upload-msg').textContent = '上传中…';
+      return fetch('/love/api/upload', { method: 'POST', body: up })
+        .then(function (r) { return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j.error || ('上传失败 HTTP ' + r.status));
+          return j;
+        }); });
+    })
       .then(function (j) {
         $('upload-msg').textContent = '上传成功，已存入对象存储。';
         e.target.reset();

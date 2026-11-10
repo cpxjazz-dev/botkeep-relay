@@ -63,13 +63,14 @@
 love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`love_users` / `love_sessions` / `love_photos` 三张表，服务启动时自动建表）。
 
 - 注册：用户名 3–20 位（字母/数字/下划线），密码至少 6 位，昵称可空。
-- **密码只存 PBKDF2-HMAC-SHA256 哈希**（`password.go`，标准库实现，60 万次迭代 + 16 字节随机盐），明文只在内存里出现一次，绝不写盘、不记日志。
+- **密码不在请求里用明文**：浏览器先对「用户名 + 换行 + 密码」算 SHA-256 再发，服务端再对收到的哈希做 PBKDF2-HMAC-SHA256（`password.go`，标准库实现，60 万次迭代 + 16 字节随机盐），存库格式为 `pbkdf2-sha256-client$...`。2026-11-10 之前注册的老账户存的是旧格式（PBKDF2 的输入是明文密码），登录时会自动迁移到新格式（只发一次明文密码完成迁移，之后不再发）。
 - 会话：登录后发一个 30 天有效的 HttpOnly 会话 cookie（`love_session`），库里只存 token 的 SHA-256 哈希；改密后旧会话全部作废。
 - **superadmin**：`LOVE_SUPERADMIN_USERNAME`（默认 `cpxjazz`）指定的用户名，注册或登录时自动升为 superadmin；该账户保留下来，不会被覆盖。superadmin 能在页面上的用户管理里点任意用户、看他/她上传的照片（`GET /love/api/photos?user_id=` 与 `GET /love/api/users` 只对 superadmin 开放）。
 
 ### 上传：照片进 Neon 对象存储
 
 - 登录后可在页面上上传图片（JPG / PNG / WebP / GIF，最大 5 MB），文件存到 Neon Object Storage 的 `uploads` 桶（路径风格，`s3.go` 自己算 SigV4 签名），元数据（上传者、文件名、说明、大小）记在 `love_photos` 表。
+- **图片会先压缩再存**：浏览器端用 canvas 先压到最长边 1600px、JPEG 质量 0.82 再传，服务端收到后也再压一遍（`image.go` 的 compressLoveImage，最长边 1600px、JPEG 质量 82，GIF 动图不动）；一张 3MB 的手机原图压完一般 200~400KB，加载快一个量级。
 - 看图用 1 小时有效的预签名链接，浏览器直接从 S3 拉图。
 - 配置在 `.env.local`：`DATABASE_URL`（pooled，给应用流量）、`DATABASE_URL_UNPOOLED`（直连，给迁移）、`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（对象存储凭据）、`AWS_ENDPOINT_URL_S3`、`AWS_REGION`、`NEON_STORAGE_BUCKET`。
 
