@@ -190,6 +190,11 @@ body {
 
 /* 照片墙：四种展示效果，容器上的 fx-* 类切换。默认拍立得。 */
 .gallery-wrap { margin-top: 36px; }
+.gallery-empty {
+  text-align: center; color: var(--muted); font-size: 15px;
+  background: var(--glass); border: 1px dashed var(--rose-border);
+  border-radius: 16px; padding: 28px 20px; margin: 0 0 20px;
+}
 .section-title {
   text-align: center; font-size: 22px; margin: 44px 0 0; color: var(--ink);
 }

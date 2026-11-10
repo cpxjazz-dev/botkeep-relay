@@ -53,10 +53,10 @@
 
 ## 给她的（独立照片站：账户 + 上传 + 四种展示效果）
 
-`love/` 是给女友的独立小站，与博客彻底拆开、互不链接：生活照片墙 + 飘心、闪星、花瓣流式特效 + 流光标题 + 音乐播放器。
+`love/` 是给女友的独立小站，与博客彻底拆开、互不链接：飘心、闪星、花瓣流式特效 + 流光标题 + 音乐播放器。
 
 - 线上：https://rxs3yg.bot-keep.xyz/love/
-- 原有的 6 张生活照片仍在 `love/photos/` 里，是静态内容。
+- **相册是每人私有的**：首页不放任何照片；登录后只显示你自己上传的照片，别人看不到（superadmin 除外，见下）。原有的 6 张生活照片已迁迱cpxjazz 账户（存进对象存储 + 照片表），不再以静态文件放在首页。
 
 ### 账户
 
@@ -95,7 +95,7 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 | POST | `/love/api/password` | 改密码（要当前密码） |
 | POST | `/love/api/prefs` | 保存展示效果偏好 |
 | POST | `/love/api/upload` | 上传图片（multipart，字段 photo，可带 caption） |
-| GET | `/love/api/photos` | 已上传照片（带 1 小时预签名链接）；`?mine=1` 只看自己的；`?user_id=` 只给 superadmin |
+| GET | `/love/api/photos` | **登录后只返回自己的照片**（未登录 401）；`?user_id=` 只给 superadmin |
 | GET | `/love/api/users` | 用户列表，只给 superadmin |
 
 ## 每小时运行状态推送

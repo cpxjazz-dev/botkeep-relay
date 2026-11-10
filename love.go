@@ -569,22 +569,14 @@ func handleLovePhotos(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"photos": photos})
 		return
 	}
-	// ?mine=1：只看自己的。
-	if r.URL.Query().Get("mine") == "1" {
-		me := getSessionUser(r)
-		if me == nil {
-			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
-			return
-		}
-		photos, err := listLovePhotos(&me.ID, limit)
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询照片失败"})
-			return
-		}
-		writeJSON(w, http.StatusOK, map[string]any{"photos": photos})
+	// 默认只返回登录用户自己的照片：每个人的相册互相看不见。
+	// 未登录返回 401，前端据此显示“登录后查看你的照片”。
+	me := getSessionUser(r)
+	if me == nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "未登录"})
 		return
 	}
-	photos, err := listLovePhotos(nil, limit)
+	photos, err := listLovePhotos(&me.ID, limit)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询照片失败"})
 		return

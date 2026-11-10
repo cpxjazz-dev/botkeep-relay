@@ -101,12 +101,40 @@
       $('admin-panel').style.display = me.is_superadmin ? '' : 'none';
       applyFx(me.display_effect || 'polaroid');
       if (me.is_superadmin) loadUsers();
+      loadMyPhotos();
     } else {
       out.classList.remove('hidden');
       inn.classList.add('hidden');
       $('nav-account').textContent = '登录';
       applyFx('polaroid');
+      // 退出后清空相册，不留别人的照片。
+      gallery.innerHTML = '';
+      updateGalleryEmpty();
     }
+  }
+
+  function updateGalleryEmpty() {
+    var empty = $('gallery-empty');
+    var has = gallery.querySelectorAll('.photo-card').length > 0;
+    empty.style.display = has ? 'none' : '';
+    empty.textContent = me
+      ? '你还没有上传照片，用上面的表单传一张吧。'
+      : '登录后，这里只显示你自己上传的照片，别人看不到。';
+  }
+
+  // 只拉登录用户自己的照片（后端已按会话过滤）。
+  function loadMyPhotos() {
+    if (!me) return;
+    api('/love/api/photos').then(function (j) {
+      gallery.innerHTML = '';
+      j.photos.forEach(function (p) {
+        gallery.appendChild(photoCard(p));
+      });
+      updateGalleryEmpty();
+      if (currentFx === 'carousel') showSlide(0);
+    }).catch(function () {
+      updateGalleryEmpty();
+    });
   }
 
   $('nav-account').addEventListener('click', function () {
@@ -225,6 +253,7 @@
         $('upload-msg').textContent = '上传成功，已存入对象存储。';
         e.target.reset();
         gallery.insertBefore(photoCard(j.photo), gallery.firstChild);
+        updateGalleryEmpty();
         if (currentFx === 'carousel') showSlide(0);
       })
       .catch(function (err) {
@@ -289,13 +318,7 @@
 
   /* ---------- 启动 ---------- */
 
-  // 先拉已上传的照片（公开），再看登录状态（登录后按账户的展示效果）。
-  api('/love/api/photos').then(function (j) {
-    j.photos.forEach(function (p) {
-      gallery.appendChild(photoCard(p));
-    });
-  }).catch(function () { /* 没配数据库时照片墙只显示原有的 6 张 */ });
-
+  // 先看登录状态：登录后才拉自己的照片（未登录不显示任何照片）。
   api('/love/api/me').then(function (j) {
     me = j.user;
     setAuthUI();
