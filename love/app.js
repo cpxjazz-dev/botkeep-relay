@@ -754,24 +754,77 @@
 
   /* ---------- 上传 ---------- */
 
+  // 给图片加上“加载失败自动重试”（指数退避，最多 8 次），网速慢也不破图。
+  // 预签名链接 1 小时有效，超过 1 小时要刷新页面拿新链接。
+  function armImageRetry(img, src) {
+    img.setAttribute('data-src', src);
+    img.addEventListener('error', function () {
+      var tries = parseInt(img.getAttribute('data-retry') || '0', 10);
+      if (tries >= 8) return;
+      img.setAttribute('data-retry', String(tries + 1));
+      var delay = Math.min(1000 * Math.pow(2, tries), 15000);
+      setTimeout(function () {
+        img.src = img.getAttribute('data-src');
+      }, delay);
+    });
+  }
+
   function photoCard(p) {
     var d = document.createElement('div');
     d.className = 'photo-card uploaded';
     var img = document.createElement('img');
     // 画廊只加载 800px 的缩略图（thumb_url），原图留给灯箱，加载快得多；
     // 老照片没有缩略图时用原图兜底。
-    img.src = p.thumb_url || p.url;
+    var src = p.thumb_url || p.url;
+    img.src = src;
+    img.setAttribute('data-src', src);
     img.dataset.full = p.url;
     img.alt = p.caption || p.filename;
     img.loading = 'lazy';
+    // 网速慢时图片可能加载失败：先不显示破图，自动重试（指数退避，最多 8 次），
+    // 宁可多等会儿也别显示破图。加载成功再淡入。
+    img.style.opacity = '0';
+    d.classList.add('img-loading');
     // 满幅行需要宽高比：图片加载后把 --ar 写到卡片上。
     var setAr = function () {
       if (img.naturalWidth && img.naturalHeight) {
         d.style.setProperty('--ar', (img.naturalWidth / img.naturalHeight).toFixed(2));
       }
     };
-    if (img.complete) setAr();
-    else img.addEventListener('load', setAr);
+    var onLoad = function () {
+      img.style.opacity = '1';
+      d.classList.remove('img-loading');
+      d.classList.remove('img-failed');
+      setAr();
+    };
+    var onError = function () {
+      var tries = parseInt(img.getAttribute('data-retry') || '0', 10);
+      if (tries >= 8) {
+        // 8 次都失败：显示“轻触重试”，点图片重新拉。预签名链接 1 小时有效，
+        // 超过 1 小时要刷新页面拿新链接。
+        d.classList.remove('img-loading');
+        d.classList.add('img-failed');
+        return;
+      }
+      img.setAttribute('data-retry', String(tries + 1));
+      var delay = Math.min(1000 * Math.pow(2, tries), 15000);
+      setTimeout(function () {
+        img.src = img.getAttribute('data-src');
+      }, delay);
+    };
+    img.addEventListener('load', onLoad);
+    img.addEventListener('error', onError);
+    // 点失败的图片重新拉一次。
+    img.addEventListener('click', function () {
+      if (d.classList.contains('img-failed')) {
+        img.setAttribute('data-retry', '0');
+        d.classList.remove('img-failed');
+        d.classList.add('img-loading');
+        img.src = img.getAttribute('data-src');
+      }
+    });
+    if (img.complete && img.naturalWidth > 0) onLoad();
+    else if (img.complete) onError();
     var badge = document.createElement('span');
     badge.className = 'heart-badge';
     badge.textContent = '💗';
@@ -868,7 +921,9 @@
         a.target = '_blank';
         a.rel = 'noopener';
         var img = document.createElement('img');
-        img.src = ph.thumb_url || ph.url;
+        var thumbSrc = ph.thumb_url || ph.url;
+        img.src = thumbSrc;
+        armImageRetry(img, thumbSrc);
         img.alt = ph.caption || ph.filename;
         img.loading = 'lazy';
         a.appendChild(img);

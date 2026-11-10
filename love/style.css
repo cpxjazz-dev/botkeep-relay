@@ -211,8 +211,20 @@ body {
 .photo-card img {
   width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block;
   border-radius: 4px; background: #fbeef3;
-  transition: transform .35s ease;
+  transition: transform .35s ease, opacity .4s ease;
 }
+/* 图片加载中 / 加载失败：显示占位文字，不显示破图。
+   图片没加载出来前 opacity 是 0（JS 控制），卡片上只显示这行小字；
+   加载成功后图片淡入，这行字消失。 */
+.photo-card.img-loading::after,
+.photo-card.img-failed::after {
+  position: absolute; left: 50%; top: 30%;
+  transform: translate(-50%, -50%);
+  font-size: 13px; color: #c98ba0; white-space: nowrap;
+  pointer-events: none; z-index: 2;
+}
+.photo-card.img-loading::after { content: '💗 加载中…'; }
+.photo-card.img-failed::after { content: '⚠️ 加载失败，轻触重试'; }
 .photo-card .cap { margin: 10px 4px 0; font-size: 14px; color: #5a3a48; text-align: center; }
 .photo-card .cap small { display: block; color: var(--faint); font-size: 12px; margin-top: 2px; }
 .photo-card .heart-badge {
