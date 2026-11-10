@@ -73,7 +73,7 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 - 看图用 1 小时有效的预签名链接，浏览器直接从 S3 拉图。
 - 配置在 `.env.local`：`DATABASE_URL`（pooled，给应用流量）、`DATABASE_URL_UNPOOLED`（直连，给迁移）、`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（对象存储凭据）、`AWS_ENDPOINT_URL_S3`、`AWS_REGION`、`NEON_STORAGE_BUCKET`。
 
-### 六种展示效果
+### 九种展示效果
 
 登录后在账户卡里选一种，记在账户的 `display_effect` 字段上，下次登录还是它（未登录默认拍立得）：
 
@@ -83,6 +83,9 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 - 🧱 **瀑布流**：多列、按原比例、不裁切。
 - 🌀 **封面流**（Coverflow，参考 Apple iTunes 与 Addy Osmani 的纯 CSS Cover Flow）：3D 扇形，中间那张正对着你，两边依次后退、倾斜、变淡；点一张非中间的卡先把它挪到中间，点中间那张开灯箱，带倒影。
 - 🖼️ **满幅行**（Justified，Flickr / Google Photos 式）：每行等高、按比例伸满整行，不裁切；说明文字悬停时才浮现。
+- 🃏 **堆叠**：一叠牌，顶上的正对着你，下面几张歪着露个边；点顶上的牌或按左右键翻下一张。
+- ✨ **扩散**：像随手撒在桌上的照片，各自歪着、错落着；悬停那张会扶正、放大、浮起来。
+- 🌳 **记忆树**：中间一条主干，照片左右交错长在枝头上，枝节处一颗爱心；手机上自动收成单列。
 
 ### 每人上限
 

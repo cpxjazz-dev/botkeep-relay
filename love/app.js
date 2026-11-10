@@ -3,11 +3,12 @@
   var gallery = document.getElementById('gallery');
   var carouselBar = document.getElementById('carousel-bar');
   var carCount = document.getElementById('car-count');
-  var FX = ['polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified'];
+  var FX = ['polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified', 'stack', 'scatter', 'tree'];
   var currentFx = 'polaroid';
   var carIndex = 0;
   var carTimer = null;
   var coverIndex = 0;
+  var stackIndex = 0;
   var me = null;
 
   function api(path, opts) {
@@ -31,9 +32,9 @@
   function applyFx(fx) {
     if (FX.indexOf(fx) < 0) fx = 'polaroid';
     currentFx = fx;
-    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry', 'fx-coverflow', 'fx-justified');
+    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry', 'fx-coverflow', 'fx-justified', 'fx-stack', 'fx-scatter', 'fx-tree');
     gallery.classList.add('fx-' + fx);
-    carouselBar.style.display = (fx === 'carousel' || fx === 'coverflow') ? 'flex' : 'none';
+    carouselBar.style.display = (fx === 'carousel' || fx === 'coverflow' || fx === 'stack') ? 'flex' : 'none';
     document.querySelectorAll('#fx-picker .fx-btn').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-fx') === fx);
     });
@@ -45,15 +46,86 @@
     } else if (fx === 'coverflow') {
       coverIndex = 0;
       layoutCoverflow();
+    } else if (fx === 'stack') {
+      stackIndex = 0;
+      layoutStack();
+    } else if (fx === 'scatter') {
+      layoutScatter();
     } else {
-      // 其他效果下，把轮播/封面流藏起来的卡片恢复显示，并清掉封面流的 transform。
+      // 其他效果下，把轮播/封面流/堆叠/扩散留下的行内样式清掉，卡片恢复正常流式布局。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
         c.style.display = '';
         c.style.transform = '';
         c.style.opacity = '';
         c.style.zIndex = '';
+        c.style.left = '';
+        c.style.top = '';
       });
+      gallery.style.height = '';
     }
+  }
+
+  /* 堆叠：一叠牌，顶上的正对着你，下面几张按顺序歪着露边。点顶上的牌翻下一张。 */
+  function layoutStack() {
+    var list = cards();
+    if (!list.length) return;
+    stackIndex = Math.max(0, Math.min(stackIndex, list.length - 1));
+    list.forEach(function (c, i) {
+      var behind = (i - stackIndex + list.length) % list.length; // 0 = 顶上那张
+      var tilt = (behind % 2 === 0 ? 1 : -1) * Math.min(behind, 4) * 2.2;
+      c.style.display = '';
+      c.style.left = '';
+      c.style.top = '';
+      c.style.transform =
+        'translate(' + (behind * 7) + 'px, ' + (behind * 5) + 'px) rotate(' + tilt + 'deg)';
+      c.style.zIndex = String(list.length - behind);
+      c.style.opacity = behind > 5 ? '0' : String(Math.max(0.35, 1 - behind * 0.12));
+    });
+    carCount.textContent = (stackIndex + 1) + ' / ' + list.length;
+  }
+
+  function stackGo(i) {
+    var list = cards();
+    if (!list.length) return;
+    stackIndex = (i + list.length) % list.length;
+    layoutStack();
+  }
+
+  // 堆叠下点顶上的牌：翻下一张。
+  gallery.addEventListener('click', function (e) {
+    if (currentFx !== 'stack') return;
+    var card = e.target.closest('.photo-card');
+    if (!card) return;
+    var idx = cards().indexOf(card);
+    if (idx === stackIndex) {
+      e.stopPropagation();
+      stackGo(stackIndex + 1);
+    }
+  }, true);
+
+  /* 扩散：按下标算一个固定的随机位置和角度，像随手撒在桌上（同一组照片每次位置一样）。 */
+  function layoutScatter() {
+    var list = cards();
+    if (!list.length) return;
+    var cols = window.innerWidth < 680 ? 2 : 4;
+    var colW = 100 / cols;
+    var rowH = 250;
+    list.forEach(function (c, i) {
+      var r1 = (((i + 1) * 2654435761) % 1000) / 1000; // 0..1 伪随机
+      var r2 = (((i + 1) * 40503) % 1000) / 1000;
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      var left = col * colW + (r1 - 0.5) * 6;
+      var top = row * rowH + (r2 - 0.5) * 70;
+      var rot = (r1 - 0.5) * 28;
+      c.style.display = '';
+      c.style.opacity = '';
+      c.style.zIndex = '';
+      c.style.left = left + '%';
+      c.style.top = top + 'px';
+      c.style.transform = 'rotate(' + rot.toFixed(1) + 'deg)';
+    });
+    gallery.style.height = (Math.ceil(list.length / cols) * rowH + 60) + 'px';
   }
 
   /* 封面流：按 active 下标排 3D 扇形（参考 Addy Osmani 的 Cover Flow 与 CSS 3D Lab 的做法）。
@@ -118,10 +190,12 @@
 
   $('car-prev').addEventListener('click', function () {
     if (currentFx === 'coverflow') coverGo(coverIndex - 1);
+    else if (currentFx === 'stack') stackGo(stackIndex - 1);
     else { showSlide(carIndex - 1); startAuto(); }
   });
   $('car-next').addEventListener('click', function () {
     if (currentFx === 'coverflow') coverGo(coverIndex + 1);
+    else if (currentFx === 'stack') stackGo(stackIndex + 1);
     else { showSlide(carIndex + 1); startAuto(); }
   });
 
@@ -187,6 +261,8 @@
       updateGalleryEmpty();
       if (currentFx === 'carousel') showSlide(0);
       if (currentFx === 'coverflow') layoutCoverflow();
+      if (currentFx === 'stack') layoutStack();
+      if (currentFx === 'scatter') layoutScatter();
     }).catch(function () {
       updateGalleryEmpty();
     });
@@ -319,6 +395,8 @@
         updateGalleryEmpty();
         if (currentFx === 'carousel') showSlide(0);
         if (currentFx === 'coverflow') layoutCoverflow();
+        if (currentFx === 'stack') layoutStack();
+        if (currentFx === 'scatter') layoutScatter();
       })
       .catch(function (err) {
         $('upload-msg').textContent = err.message;
