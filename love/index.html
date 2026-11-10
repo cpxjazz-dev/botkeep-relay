@@ -72,21 +72,6 @@
     <div id="auth-in" class="hidden">
       <h3>💗 <span id="who"></span></h3>
       <p class="hint" id="admin-badge" style="display:none">👑 你是 superadmin，可以查看任意用户的照片。</p>
-      <div class="fx-picker" id="fx-picker">
-        <span class="fx-label">照片展示效果：</span>
-        <button type="button" data-fx="polaroid" class="fx-btn">📷 拍立得</button>
-        <button type="button" data-fx="grid" class="fx-btn">🔲 网格</button>
-        <button type="button" data-fx="carousel" class="fx-btn">🎞️ 轮播</button>
-        <button type="button" data-fx="masonry" class="fx-btn">🧱 瀑布流</button>
-        <button type="button" data-fx="coverflow" class="fx-btn">🌀 封面流</button>
-        <button type="button" data-fx="justified" class="fx-btn">🖼️ 满幅行</button>
-        <button type="button" data-fx="stack" class="fx-btn">🃏 堆叠</button>
-        <button type="button" data-fx="scatter" class="fx-btn">✨ 扩散</button>
-        <button type="button" data-fx="tree" class="fx-btn">🌳 记忆树</button>
-        <button type="button" data-fx="ring" class="fx-btn">⭕ 环形</button>
-        <button type="button" id="btn-autofx" class="fx-btn autofx-btn" title="每 8 秒自动换一种展示效果">▶️ 自动轮播</button>
-      </div>
-      <p class="hint">选一个喜欢的效果，会记在你的账户上，下次登录还是它。</p>
       <form id="form-upload" class="upload-form" enctype="multipart/form-data">
         <input id="upload-file" name="photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" required>
         <input id="upload-caption" name="caption" type="text" placeholder="给这张照片写一句说明（可空）" maxlength="200">
@@ -112,6 +97,26 @@
         <div id="admin-photos"></div>
       </div>
     </div>
+  </section>
+
+  <!-- 展示效果选择：单独放出来，看图时只留它和照片（专注看图模式）。 -->
+  <section class="fx-bar" id="fx-bar" style="display:none">
+    <div class="fx-picker" id="fx-picker">
+      <span class="fx-label">照片展示效果：</span>
+      <button type="button" data-fx="polaroid" class="fx-btn">📷 拍立得</button>
+      <button type="button" data-fx="grid" class="fx-btn">🔲 网格</button>
+      <button type="button" data-fx="carousel" class="fx-btn">🎞️ 轮播</button>
+      <button type="button" data-fx="masonry" class="fx-btn">🧱 瀑布流</button>
+      <button type="button" data-fx="coverflow" class="fx-btn">🌀 封面流</button>
+      <button type="button" data-fx="justified" class="fx-btn">🖼️ 满幅行</button>
+      <button type="button" data-fx="stack" class="fx-btn">🃏 堆叠</button>
+      <button type="button" data-fx="scatter" class="fx-btn">✨ 扩散</button>
+      <button type="button" data-fx="tree" class="fx-btn">🌳 记忆树</button>
+      <button type="button" data-fx="ring" class="fx-btn">⭕ 环形</button>
+      <button type="button" id="btn-autofx" class="fx-btn autofx-btn" title="每 8 秒自动换一种展示效果">▶️ 自动轮播</button>
+    </div>
+    <p class="hint">选一个喜欢的效果，会记在你的账户上，下次登录还是它。</p>
+    <button type="button" id="btn-focus" class="focus-btn">🔍 专注看图</button>
   </section>
 
   <h2 class="section-title rise d5">我的照片</h2>

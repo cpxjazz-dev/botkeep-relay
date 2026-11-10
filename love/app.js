@@ -412,6 +412,7 @@
 
   function setAuthUI() {
     var out = $('auth-out'), inn = $('auth-in');
+    $('fx-bar').style.display = me ? '' : 'none';
     if (me) {
       out.classList.add('hidden');
       inn.classList.remove('hidden');
@@ -426,12 +427,29 @@
       out.classList.remove('hidden');
       inn.classList.add('hidden');
       $('nav-account').textContent = '登录';
+      setFocusMode(false);
       applyFx('polaroid');
       // 退出后清空相册，不留别人的照片。
       gallery.innerHTML = '';
       updateGalleryEmpty();
     }
   }
+
+  /* 专注看图：只留效果选择器和照片，其他（导航、标题、情话、音乐、账户、页脚、
+     飘心/闪星/花瓣）全藏起来，专心看效果；再点一次或按 Esc 退出。 */
+  function setFocusMode(on) {
+    document.body.classList.toggle('focus-mode', on);
+    $('btn-focus').textContent = on ? '✕ 退出专注' : '🔍 专注看图';
+  }
+  $('btn-focus').addEventListener('click', function () {
+    setFocusMode(!document.body.classList.contains('focus-mode'));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('focus-mode') &&
+        !$('lightbox').classList.contains('open')) {
+      setFocusMode(false);
+    }
+  });
 
   function updateGalleryEmpty() {
     var empty = $('gallery-empty');
@@ -576,7 +594,10 @@
     var d = document.createElement('div');
     d.className = 'photo-card uploaded';
     var img = document.createElement('img');
-    img.src = p.url;
+    // 画廊只加载 400px 的缩略图（thumb_url），原图留给灯箱，加载快得多；
+    // 老照片没有缩略图时用原图兜底。
+    img.src = p.thumb_url || p.url;
+    img.dataset.full = p.url;
     img.alt = p.caption || p.filename;
     img.loading = 'lazy';
     // 满幅行需要宽高比：图片加载后把 --ar 写到卡片上。
@@ -681,7 +702,7 @@
         a.target = '_blank';
         a.rel = 'noopener';
         var img = document.createElement('img');
-        img.src = ph.url;
+        img.src = ph.thumb_url || ph.url;
         img.alt = ph.caption || ph.filename;
         img.loading = 'lazy';
         a.appendChild(img);

@@ -21,7 +21,8 @@
     var photo = list[current].querySelector('img');
     var caption = list[current].querySelector('.cap');
     if (!photo) return;
-    img.src = photo.src;
+    // 灯箱看原图：画廊里是 400px 缩略图，点开后用 data-full 里的原图链接。
+    img.src = photo.dataset.full || photo.src;
     img.alt = photo.alt || '';
     cap.innerHTML = caption ? caption.innerHTML : '';
     box.classList.add('open');

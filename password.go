@@ -2,7 +2,10 @@
 // 浏览器先把密码算成 SHA-256 再发（见 love/app.js 的 hashPassword），
 // 请求里不再出现明文密码；服务端再对收到的哈希做 PBKDF2。
 // 存的格式：pbkdf2-sha256-client$<迭代次数>$<base64 盐>$<base64 哈希>
-// 盐 16 字节随机，迭代 60 万次（OWASP 对 SHA-256 的建议量级），哈希 32 字节。
+// 盐 16 字节随机，哈希 32 字节。
+// 迭代 10 万次：OWASP 对 SHA-256 的建议是 60 万次，但 Botkeep 免费机只有 0.5 核，
+// 60 万次登录要好几秒，10 万次在弱 CPU 上约 0.3 秒、强度仍够用（登录是一次性成本，
+// 会话 cookie 30 天有效，不用每次都算）。旧格式的 60 万次哈希照样校验。
 // 2026-11-10 之前注册的账户存的是旧格式 pbkdf2-sha256$...（输入是明文密码），
 // 登录时会自动迁移到新格式（见 love.go 的登录处理）。
 package main
@@ -21,7 +24,7 @@ import (
 )
 
 const (
-	pbkdf2Iterations = 600000
+	pbkdf2Iterations = 100000
 	pbkdf2SaltLen    = 16
 	pbkdf2KeyLen     = 32
 )

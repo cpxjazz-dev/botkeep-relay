@@ -431,6 +431,8 @@ func randomHex(n int) string {
 }
 
 // LovePhoto 是一张上传的照片（带一个 1 小时有效的查看链接）。
+// URL 是 1600px 的原图（灯箱用），ThumbURL 是 400px 的缩略图（画廊用，加载快得多；
+// 老照片没有缩略图时为空，前端用 URL 兜底）。
 type LovePhoto struct {
 	ID          int    `json:"id"`
 	UserID      int    `json:"user_id"`
@@ -441,6 +443,7 @@ type LovePhoto struct {
 	ContentType string `json:"content_type"`
 	SizeBytes   int64  `json:"size_bytes"`
 	URL         string `json:"url"`
+	ThumbURL    string `json:"thumb_url,omitempty"`
 	CreatedAt   string `json:"created_at"`
 }
 
@@ -514,11 +517,20 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "存入对象存储失败: " + err.Error()})
 		return
 	}
+	// 缩略图：画廊只加载 400px 的小图，灯箱才用原图。缩略图失败不影响主流程，
+	// 前端没有 thumb_url 时用原图兜底。
+	var thumbKey string
+	if thumb := makeLoveThumbnail(data); thumb != nil {
+		thumbKey = fmt.Sprintf("u%d/thumb/%s-%s.jpg", u.ID, time.Now().Format("20060102"), randomHex(6))
+		if err := s3cfg.s3PutObject(thumbKey, "image/jpeg", thumb); err != nil {
+			thumbKey = ""
+		}
+	}
 	var photoID int
 	err = db.QueryRow(
-		`INSERT INTO love_photos (user_id, object_key, filename, caption, content_type, size_bytes)
-		 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-		u.ID, key, filename, caption, ct, len(data),
+		`INSERT INTO love_photos (user_id, object_key, thumb_object_key, filename, caption, content_type, size_bytes)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+		u.ID, key, sql.NullString{String: thumbKey, Valid: thumbKey != ""}, filename, caption, ct, len(data),
 	).Scan(&photoID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "保存照片记录失败"})
@@ -531,23 +543,28 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 	if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
 		photo.URL = url
 	}
+	if thumbKey != "" {
+		if url, err := s3cfg.s3PresignGet(thumbKey, time.Hour); err == nil {
+			photo.ThumbURL = url
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "photo": &photo})
 }
 
-// listLovePhotos 查照片并给每张配一个 1 小时有效的查看链接。
+// listLovePhotos 查照片并给每张配一个 1 小时有效的查看链接（原图 + 缩略图）。
 func listLovePhotos(userID *int, limit int) ([]LovePhoto, error) {
 	var rows *sql.Rows
 	var err error
 	if userID != nil {
 		rows, err = db.Query(
 			`SELECT p.id, p.user_id, u.username, u.display_name, p.filename, p.caption,
-			        p.content_type, p.size_bytes, p.object_key, p.created_at
+			        p.content_type, p.size_bytes, p.object_key, p.thumb_object_key, p.created_at
 			 FROM love_photos p JOIN love_users u ON u.id = p.user_id
 			 WHERE p.user_id = $1 ORDER BY p.created_at DESC LIMIT $2`, *userID, limit)
 	} else {
 		rows, err = db.Query(
 			`SELECT p.id, p.user_id, u.username, u.display_name, p.filename, p.caption,
-			        p.content_type, p.size_bytes, p.object_key, p.created_at
+			        p.content_type, p.size_bytes, p.object_key, p.thumb_object_key, p.created_at
 			 FROM love_photos p JOIN love_users u ON u.id = p.user_id
 			 ORDER BY p.created_at DESC LIMIT $1`, limit)
 	}
@@ -559,13 +576,19 @@ func listLovePhotos(userID *int, limit int) ([]LovePhoto, error) {
 	for rows.Next() {
 		var p LovePhoto
 		var key string
+		var thumbKey sql.NullString
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Username, &p.DisplayName, &p.Filename,
-			&p.Caption, &p.ContentType, &p.SizeBytes, &key, &p.CreatedAt); err != nil {
+			&p.Caption, &p.ContentType, &p.SizeBytes, &key, &thumbKey, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		if s3cfg != nil {
 			if url, err := s3cfg.s3PresignGet(key, time.Hour); err == nil {
 				p.URL = url
+			}
+			if thumbKey.Valid && thumbKey.String != "" {
+				if url, err := s3cfg.s3PresignGet(thumbKey.String, time.Hour); err == nil {
+					p.ThumbURL = url
+				}
 			}
 		}
 		photos = append(photos, p)

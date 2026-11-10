@@ -189,7 +189,7 @@ body {
 }
 
 /* 照片墙：四种展示效果，容器上的 fx-* 类切换。默认拍立得。 */
-.gallery-wrap { margin-top: 36px; }
+.gallery-wrap { margin-top: 36px; position: relative; isolation: isolate; }
 .gallery-empty {
   text-align: center; color: var(--muted); font-size: 15px;
   background: var(--glass); border: 1px dashed var(--rose-border);
@@ -247,18 +247,20 @@ body {
 .gallery.fx-masonry .photo-card .heart-badge { display: none; }
 .gallery.fx-masonry .photo-card:hover { transform: translateY(-4px); box-shadow: 0 14px 32px rgba(229, 107, 140, .25); }
 /* 轮播：一张大图居中，左右切换（app.js 控制显示） */
-.gallery.fx-carousel { display: block; }
+.gallery.fx-carousel { display: block; overflow: hidden; isolation: isolate; }
 .gallery.fx-carousel .photo-card {
   max-width: 640px; margin: 0 auto; padding: 14px 14px 18px;
 }
 .gallery.fx-carousel .photo-card::before { display: none; }
 .gallery.fx-carousel .photo-card img { aspect-ratio: 4 / 3; }
 /* 封面流（Coverflow）：3D 扇形，中间那张正对着你，两边依次后退、倾斜、变淡。
-   位置由 app.js 按 active 下标算 transform，容器给 perspective。 */
+   位置由 app.js 按 active 下标算 transform，容器给 perspective。
+   overflow: hidden + isolation: isolate 把 3D 卡片收在容器里，不让它撑大页面、
+   也不让卡片的 z-index 盖到导航和效果条上去。 */
 .gallery.fx-coverflow {
   display: block; position: relative;
   height: 480px; perspective: 1400px;
-  overflow: visible;
+  overflow: hidden; isolation: isolate;
 }
 .gallery.fx-coverflow .photo-card {
   position: absolute; left: 50%; top: 50%;
@@ -303,7 +305,7 @@ body {
 /* 堆叠：一叠牌，顶上那张正对着你，下面几张歪着露个边。点顶上的牌或按左右键翻下一张。 */
 .gallery.fx-stack {
   display: block; position: relative;
-  height: 520px;
+  height: 520px; overflow: hidden; isolation: isolate;
 }
 .gallery.fx-stack .photo-card {
   position: absolute; left: 50%; top: 50%;
@@ -315,9 +317,11 @@ body {
 .gallery.fx-stack .photo-card::before { display: none; }
 .gallery.fx-stack .photo-card img { aspect-ratio: 3 / 4; }
 .gallery.fx-stack .photo-card .heart-badge { display: none; }
-/* 扩散：像随手撒在桌上的照片，各自歪着、错落着，悬停那张会扶正、放大、浮起来。 */
+/* 扩散：像随手撒在桌上的照片，各自歪着、错落着，悬停那张会扶正、放大、浮起来。
+   卡片是绝对定位的，容器收一下溢出，别撑大页面。 */
 .gallery.fx-scatter {
   display: block; position: relative;
+  overflow: hidden; isolation: isolate;
 }
 .gallery.fx-scatter .photo-card {
   position: absolute; width: 230px;
@@ -369,11 +373,13 @@ body {
   .gallery.fx-tree .photo-card::after { display: none; }
 }
 /* 环形：照片排成一个 3D 圆环，自动慢慢转；点哪张，哪张转到正前方、变大，环停下。
-   位置由 app.js 按 ringAngle 算 transform；背过去的卡片藏起来（backface），带倒影。 */
+   位置由 app.js 按 ringAngle 算 transform；背过去的卡片藏起来（backface），带倒影。
+   overflow: hidden + isolation: isolate 把 3D 卡片收在容器里，不让它撑大页面、
+   也不让卡片的 z-index 盖到导航和效果条上去；高度 560px 给倒影留地方。 */
 .gallery.fx-ring {
   display: block; position: relative;
-  height: 520px; perspective: 1400px;
-  overflow: visible;
+  height: 560px; perspective: 1400px;
+  overflow: hidden; isolation: isolate;
 }
 .gallery.fx-ring .photo-card {
   position: absolute; left: 50%; top: 50%;
@@ -497,6 +503,41 @@ footer a { color: var(--muted); }
 /* 自动轮播开关：和效果按钮区分开（虚线边），开启时高亮。 */
 .fx-btn.autofx-btn { border-style: dashed; margin-left: 6px; }
 .fx-btn.autofx-btn.active { background: linear-gradient(90deg, #c96f8f, #e0789a); border-style: solid; }
+/* 展示效果选择条：单独放出来，登录后可见；专注看图时只留它和照片。 */
+.fx-bar {
+  max-width: 680px; margin: 28px auto 0;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: 24px; padding: 20px 24px;
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: 0 8px 28px rgba(180, 80, 110, .12);
+}
+.fx-bar .hint { color: var(--muted); font-size: 13.5px; margin: 6px 0 0; }
+.focus-btn {
+  margin-top: 14px; border: 1px dashed var(--rose-border); background: rgba(255, 255, 255, .7);
+  color: var(--rose-deep); font-size: 13.5px; padding: 8px 18px; border-radius: 999px;
+  cursor: pointer; font-family: inherit;
+}
+.focus-btn:hover { background: var(--rose-soft); }
+/* 专注看图：只留效果选择条和照片，其他全藏起来，专心看效果；装饰的飘心/闪星/花瓣也停掉。 */
+body.focus-mode .nav,
+body.focus-mode .hero,
+body.focus-mode .love-note,
+body.focus-mode .music-card,
+body.focus-mode .account-card,
+body.focus-mode .section-title,
+body.focus-mode footer { display: none !important; }
+body.focus-mode .blob,
+body.focus-mode .float-hearts,
+body.focus-mode .twinkles,
+body.focus-mode .petals { display: none !important; }
+body.focus-mode .wrap { max-width: 1100px; }
+body.focus-mode .fx-bar { margin-top: 20px; max-width: 1100px; }
+body.focus-mode .gallery-wrap { margin-top: 18px; }
+body.focus-mode .focus-btn {
+  background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff;
+  border-style: solid; font-weight: 600;
+}
 .upload-form { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
 .upload-form input[type="file"] { font-size: 13.5px; color: var(--muted); }
 .pwd-box { margin-top: 16px; border-top: 1px solid rgba(229, 107, 140, .18); padding-top: 12px; }

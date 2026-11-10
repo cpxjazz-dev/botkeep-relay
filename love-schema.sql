@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS love_photos (
   id           SERIAL PRIMARY KEY,
   user_id      INT NOT NULL REFERENCES love_users(id) ON DELETE CASCADE,
   object_key   TEXT NOT NULL,
+  thumb_object_key TEXT,
   filename     TEXT NOT NULL DEFAULT '',
   caption      TEXT NOT NULL DEFAULT '',
   content_type TEXT NOT NULL DEFAULT '',
@@ -38,3 +39,4 @@ CREATE TABLE IF NOT EXISTS love_photos (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS love_photos_user_idx ON love_photos(user_id, created_at DESC);
+ALTER TABLE love_photos ADD COLUMN IF NOT EXISTS thumb_object_key TEXT;
