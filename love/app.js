@@ -3,10 +3,11 @@
   var gallery = document.getElementById('gallery');
   var carouselBar = document.getElementById('carousel-bar');
   var carCount = document.getElementById('car-count');
-  var FX = ['polaroid', 'grid', 'carousel', 'masonry'];
+  var FX = ['polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified'];
   var currentFx = 'polaroid';
   var carIndex = 0;
   var carTimer = null;
+  var coverIndex = 0;
   var me = null;
 
   function api(path, opts) {
@@ -30,24 +31,68 @@
   function applyFx(fx) {
     if (FX.indexOf(fx) < 0) fx = 'polaroid';
     currentFx = fx;
-    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry');
+    gallery.classList.remove('fx-polaroid', 'fx-grid', 'fx-carousel', 'fx-masonry', 'fx-coverflow', 'fx-justified');
     gallery.classList.add('fx-' + fx);
-    carouselBar.style.display = fx === 'carousel' ? 'flex' : 'none';
+    carouselBar.style.display = (fx === 'carousel' || fx === 'coverflow') ? 'flex' : 'none';
     document.querySelectorAll('#fx-picker .fx-btn').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-fx') === fx);
     });
+    stopAuto();
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
       startAuto();
+    } else if (fx === 'coverflow') {
+      coverIndex = 0;
+      layoutCoverflow();
     } else {
-      stopAuto();
-      // 轮播时藏起来的卡片要恢复显示。
+      // 其他效果下，把轮播/封面流藏起来的卡片恢复显示，并清掉封面流的 transform。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
         c.style.display = '';
+        c.style.transform = '';
+        c.style.opacity = '';
+        c.style.zIndex = '';
       });
     }
   }
+
+  /* 封面流：按 active 下标排 3D 扇形（参考 Addy Osmani 的 Cover Flow 与 CSS 3D Lab 的做法）。
+     中间那张正对着你，两边依次往后退、往外倾斜、变淡。 */
+  function layoutCoverflow() {
+    var list = cards();
+    if (!list.length) return;
+    coverIndex = Math.max(0, Math.min(coverIndex, list.length - 1));
+    list.forEach(function (c, i) {
+      var off = i - coverIndex;
+      var sign = off < 0 ? -1 : 1;
+      var mag = Math.min(Math.abs(off), 3);
+      c.style.display = '';
+      c.style.transform =
+        'translateX(' + (off * 56) + '%) translateZ(' + (-mag * 140) + 'px) rotateY(' + (-sign * mag * 34) + 'deg)';
+      c.style.zIndex = String(10 - mag);
+      c.style.opacity = String(Math.max(0, 1 - mag * 0.28));
+    });
+    carCount.textContent = (coverIndex + 1) + ' / ' + list.length;
+  }
+
+  function coverGo(i) {
+    var list = cards();
+    if (!list.length) return;
+    coverIndex = (i + list.length) % list.length;
+    layoutCoverflow();
+  }
+
+  // 封面流下点一张非中间的卡：先把它挪到中间，不打开灯箱；点中间那张才打开灯箱。
+  gallery.addEventListener('click', function (e) {
+    if (currentFx !== 'coverflow') return;
+    var card = e.target.closest('.photo-card');
+    if (!card) return;
+    var idx = cards().indexOf(card);
+    if (idx >= 0 && idx !== coverIndex) {
+      e.stopPropagation();
+      coverGo(idx);
+    }
+  }, true);
 
   function cards() {
     return Array.prototype.slice.call(gallery.querySelectorAll('.photo-card'));
@@ -71,8 +116,14 @@
     if (carTimer) { clearInterval(carTimer); carTimer = null; }
   }
 
-  $('car-prev').addEventListener('click', function () { showSlide(carIndex - 1); startAuto(); });
-  $('car-next').addEventListener('click', function () { showSlide(carIndex + 1); startAuto(); });
+  $('car-prev').addEventListener('click', function () {
+    if (currentFx === 'coverflow') coverGo(coverIndex - 1);
+    else { showSlide(carIndex - 1); startAuto(); }
+  });
+  $('car-next').addEventListener('click', function () {
+    if (currentFx === 'coverflow') coverGo(coverIndex + 1);
+    else { showSlide(carIndex + 1); startAuto(); }
+  });
 
   document.querySelectorAll('#fx-picker .fx-btn').forEach(function (b) {
     b.addEventListener('click', function () {
@@ -120,6 +171,9 @@
     empty.textContent = me
       ? '你还没有上传照片，用上面的表单传一张吧。'
       : '登录后，这里只显示你自己上传的照片，别人看不到。';
+    var n = gallery.querySelectorAll('.photo-card').length;
+    var q = $('quota');
+    if (q) q.textContent = '已上传 ' + n + ' / 50 张。';
   }
 
   // 只拉登录用户自己的照片（后端已按会话过滤）。
@@ -132,6 +186,7 @@
       });
       updateGalleryEmpty();
       if (currentFx === 'carousel') showSlide(0);
+      if (currentFx === 'coverflow') layoutCoverflow();
     }).catch(function () {
       updateGalleryEmpty();
     });
@@ -221,6 +276,14 @@
     img.src = p.url;
     img.alt = p.caption || p.filename;
     img.loading = 'lazy';
+    // 满幅行需要宽高比：图片加载后把 --ar 写到卡片上。
+    var setAr = function () {
+      if (img.naturalWidth && img.naturalHeight) {
+        d.style.setProperty('--ar', (img.naturalWidth / img.naturalHeight).toFixed(2));
+      }
+    };
+    if (img.complete) setAr();
+    else img.addEventListener('load', setAr);
     var badge = document.createElement('span');
     badge.className = 'heart-badge';
     badge.textContent = '💗';
@@ -255,6 +318,7 @@
         gallery.insertBefore(photoCard(j.photo), gallery.firstChild);
         updateGalleryEmpty();
         if (currentFx === 'carousel') showSlide(0);
+        if (currentFx === 'coverflow') layoutCoverflow();
       })
       .catch(function (err) {
         $('upload-msg').textContent = err.message;

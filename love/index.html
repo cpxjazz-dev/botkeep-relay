@@ -78,6 +78,8 @@
         <button type="button" data-fx="grid" class="fx-btn">🔲 网格</button>
         <button type="button" data-fx="carousel" class="fx-btn">🎞️ 轮播</button>
         <button type="button" data-fx="masonry" class="fx-btn">🧱 瀑布流</button>
+        <button type="button" data-fx="coverflow" class="fx-btn">🌀 封面流</button>
+        <button type="button" data-fx="justified" class="fx-btn">🖼️ 满幅行</button>
       </div>
       <p class="hint">选一个喜欢的效果，会记在你的账户上，下次登录还是它。</p>
       <form id="form-upload" class="upload-form" enctype="multipart/form-data">
@@ -85,7 +87,7 @@
         <input id="upload-caption" name="caption" type="text" placeholder="给这张照片写一句说明（可空）" maxlength="200">
         <button type="submit">上传到相册</button>
       </form>
-      <p class="hint">图片存到 Neon 对象存储（S3），最大 5 MB，支持 JPG / PNG / WebP / GIF。</p>
+      <p class="hint">图片存到 Neon 对象存储（S3），最大 5 MB，支持 JPG / PNG / WebP / GIF。<span id="quota">每人最多 50 张。</span></p>
       <p class="auth-msg" id="upload-msg"></p>
       <details class="pwd-box">
         <summary>改密码</summary>

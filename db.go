@@ -20,10 +20,14 @@ CREATE TABLE IF NOT EXISTS love_users (
   password_hash  TEXT NOT NULL,
   is_superadmin BOOLEAN NOT NULL DEFAULT FALSE,
   display_effect TEXT NOT NULL DEFAULT 'polaroid'
-    CHECK (display_effect IN ('polaroid', 'grid', 'carousel', 'masonry')),
+    CHECK (display_effect IN ('polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified')),
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE love_users ADD COLUMN IF NOT EXISTS is_superadmin BOOLEAN NOT NULL DEFAULT FALSE;
+-- 展示效果加了新值，旧表的 CHECK 约束要跟着换（约束名是建表时自动生成的）。
+ALTER TABLE love_users DROP CONSTRAINT IF EXISTS love_users_display_effect_check;
+ALTER TABLE love_users ADD CONSTRAINT love_users_display_effect_check
+  CHECK (display_effect IN ('polaroid', 'grid', 'carousel', 'masonry', 'coverflow', 'justified'));
 CREATE TABLE IF NOT EXISTS love_sessions (
   token_hash TEXT PRIMARY KEY,
   user_id    INT NOT NULL REFERENCES love_users(id) ON DELETE CASCADE,

@@ -253,6 +253,53 @@ body {
 }
 .gallery.fx-carousel .photo-card::before { display: none; }
 .gallery.fx-carousel .photo-card img { aspect-ratio: 4 / 3; }
+/* 封面流（Coverflow）：3D 扇形，中间那张正对着你，两边依次后退、倾斜、变淡。
+   位置由 app.js 按 active 下标算 transform，容器给 perspective。 */
+.gallery.fx-coverflow {
+  display: block; position: relative;
+  height: 480px; perspective: 1400px;
+  overflow: visible;
+}
+.gallery.fx-coverflow .photo-card {
+  position: absolute; left: 50%; top: 50%;
+  width: 300px; margin-left: -150px; margin-top: -210px;
+  padding: 12px 12px 16px;
+  transition: transform .55s cubic-bezier(.22, .8, .3, 1), opacity .55s ease, box-shadow .55s ease;
+  will-change: transform;
+}
+.gallery.fx-coverflow .photo-card::before { display: none; }
+.gallery.fx-coverflow .photo-card img {
+  aspect-ratio: 3 / 4;
+  -webkit-box-reflect: below 10px linear-gradient(transparent 70%, rgba(255, 255, 255, .22));
+}
+.gallery.fx-coverflow .photo-card .heart-badge { display: none; }
+/* 满幅行（Justified，Flickr / Google Photos 式）：每行等高、按比例伸满整行，不裁切。
+   每张卡的 --ar 是宽高比（app.js 在图片加载后填），flex-grow 按它伸缩。 */
+.gallery.fx-justified {
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.gallery.fx-justified .photo-card {
+  flex-grow: var(--ar, 1.33);
+  flex-basis: calc(var(--ar, 1.33) * 190px);
+  height: 230px; min-width: 130px;
+  padding: 0; background: transparent; box-shadow: none; border-radius: 12px;
+  overflow: hidden;
+}
+.gallery.fx-justified .photo-card::before,
+.gallery.fx-justified .photo-card .heart-badge { display: none; }
+.gallery.fx-justified .photo-card img {
+  width: 100%; height: 100%; object-fit: cover; aspect-ratio: auto;
+  border-radius: 12px;
+}
+.gallery.fx-justified .photo-card .cap {
+  position: absolute; left: 0; right: 0; bottom: 0; margin: 0;
+  padding: 26px 12px 10px; text-align: left; color: #fff; font-size: 13.5px;
+  background: linear-gradient(transparent, rgba(40, 10, 25, .65));
+  opacity: 0; transition: opacity .2s ease;
+}
+.gallery.fx-justified .photo-card .cap small { color: rgba(255, 255, 255, .85); }
+.gallery.fx-justified .photo-card:hover .cap { opacity: 1; }
+.gallery.fx-justified .photo-card:hover { transform: none; box-shadow: 0 10px 28px rgba(180, 80, 110, .25); }
 .carousel-bar {
   display: none; align-items: center; justify-content: center; gap: 18px;
   margin-top: 18px;

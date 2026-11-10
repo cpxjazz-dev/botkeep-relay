@@ -73,7 +73,7 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 - 看图用 1 小时有效的预签名链接，浏览器直接从 S3 拉图。
 - 配置在 `.env.local`：`DATABASE_URL`（pooled，给应用流量）、`DATABASE_URL_UNPOOLED`（直连，给迁移）、`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`（对象存储凭据）、`AWS_ENDPOINT_URL_S3`、`AWS_REGION`、`NEON_STORAGE_BUCKET`。
 
-### 四种展示效果
+### 六种展示效果
 
 登录后在账户卡里选一种，记在账户的 `display_effect` 字段上，下次登录还是它（未登录默认拍立得）：
 
@@ -81,8 +81,12 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 - 🔲 **网格**：齐整方块，无倾斜、无胶带。
 - 🎞️ **轮播**：一张大图居中，左右切换，5 秒自动换一张。
 - 🧱 **瀑布流**：多列、按原比例、不裁切。
+- 🌀 **封面流**（Coverflow，参考 Apple iTunes 与 Addy Osmani 的纯 CSS Cover Flow）：3D 扇形，中间那张正对着你，两边依次后退、倾斜、变淡；点一张非中间的卡先把它挪到中间，点中间那张开灯箱，带倒影。
+- 🖼️ **满幅行**（Justified，Flickr / Google Photos 式）：每行等高、按比例伸满整行，不裁切；说明文字悬停时才浮现。
 
-点照片仍可开灯箱左右翻看（新上传的照片也能点开）。
+### 每人上限
+
+每人最多上传 **50 张**照片（`loveMaxPhotosPerUser`），满了上传会直接被拒。前端在上传区显示“已上传 N / 50 张”。
 
 ### love 接口
 
