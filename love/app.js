@@ -310,10 +310,12 @@
     gallery.style.height = (Math.ceil(list.length / cols) * rowH + 60) + 'px';
   }
 
-  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 8px），
+  /* 瀑布流（网格式）：每张卡按图片比例跨若干行（行高 8px、间距 12px），
      高矮不一的照片自然错落。图片没加载出来先按 4:3 估，加载完再重算。
      跨行数按真实尺寸算：图宽 = 卡片宽减掉左右内边距 20px，
-     标题高直接量 .cap 的 offsetHeight，别估——估大了卡片底下就留空。 */
+     标题高直接量 .cap 的 offsetHeight，别估——估大了卡片底下就留空。
+     注意公式要算上行间距：N 行占 N*8 + (N-1)*12，
+     所以 N = ceil((内容高 + 12) / 20)，直接除以 8 会把卡片算高两倍多。 */
   function layoutMasonry() {
     var list = cards();
     if (!list.length) return;
@@ -328,7 +330,7 @@
         imgH = imgW * 1.33;
       }
       var capH = cap ? cap.offsetHeight : 0;
-      var span = Math.max(10, Math.ceil((imgH + capH + 24 + 2) / 8));
+      var span = Math.max(1, Math.ceil((imgH + capH + 24 + 12) / 20));
       c.style.gridRowEnd = 'span ' + span;
     });
   }
@@ -337,6 +339,21 @@
      每张上面一根挂绳；树干和树枝是画在下面的 SVG（.tree-art）。
      每行封顶（电脑 6 张、手机 4 张），不然 50 张照片时底下那行宽得摆不下、
      树也高得没法看；封顶后多出来的照片往下另起一行，树变高、页面能滚。 */
+  /* 一团樱花：几个粉色小圆叠成花簇，中间一点深粉花心。 */
+  function blossomCluster(cx, cy, r) {
+    var s = '';
+    var petals = [
+      [0, 0], [0.7, 0.35], [-0.65, 0.4], [0.3, -0.7], [-0.4, -0.65],
+      [0.85, -0.35], [-0.85, -0.25], [0.15, 0.75], [-0.2, 0.7]
+    ];
+    petals.forEach(function (p, idx) {
+      var x = cx + p[0] * r, y = cy + p[1] * r;
+      var rad = r * (0.42 - (idx % 3) * 0.06);
+      s += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + rad.toFixed(1) + '" fill="#f7c6d4" opacity="0.9"/>';
+    });
+    s += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (r * 0.15).toFixed(1) + '" fill="#e78ba8" opacity="0.8"/>';
+    return s;
+  }
   function drawTreeArt(W, H) {
     var svg = gallery.querySelector('.tree-art');
     if (!svg) {
@@ -349,24 +366,41 @@
     var cx = W / 2;
     var trunkTop = H - 110;
     var s = '';
-    // 树干：下面宽、上面窄。
-    s += '<path d="M' + (cx - 15) + ' ' + H + ' L' + (cx - 8) + ' ' + trunkTop + ' L' + (cx + 8) + ' ' + trunkTop + ' L' + (cx + 15) + ' ' + H + ' Z" fill="#8b5e3c"/>';
-    // 主枝：从树干顶端分出几条，伸向树冠。
+    // 地面阴影：一片淡淡的椭圆，树站得稳。
+    s += '<ellipse cx="' + cx + '" cy="' + (H - 4) + '" rx="' + (W * 0.28).toFixed(1) + '" ry="10" fill="#e8b4c4" opacity="0.35"/>';
+    // 树干：微微弯曲，根部宽、顶部窄，深棕色。
+    s += '<path d="M' + (cx - 15) + ' ' + H
+      + ' C' + (cx - 13) + ' ' + (H - 45) + ' ' + (cx - 11) + ' ' + (trunkTop + 45) + ' ' + (cx - 7) + ' ' + trunkTop
+      + ' L' + (cx + 7) + ' ' + trunkTop
+      + ' C' + (cx + 11) + ' ' + (trunkTop + 45) + ' ' + (cx + 13) + ' ' + (H - 45) + ' ' + (cx + 15) + ' ' + H
+      + ' Z" fill="#7a4a2b"/>';
+    // 主枝：优雅的弧线，越往梢越细。
     var branches = [
-      [cx, trunkTop, cx - W * 0.30, H * 0.32],
-      [cx, trunkTop, cx + W * 0.30, H * 0.32],
-      [cx, trunkTop, cx, H * 0.10],
-      [cx, trunkTop, cx - W * 0.40, H * 0.55],
-      [cx, trunkTop, cx + W * 0.40, H * 0.55]
+      [cx, trunkTop, cx - W * 0.16, trunkTop - 35, cx - W * 0.30, H * 0.34, 5],
+      [cx, trunkTop, cx + W * 0.16, trunkTop - 35, cx + W * 0.30, H * 0.34, 5],
+      [cx, trunkTop, cx - W * 0.04, trunkTop - 55, cx, H * 0.10, 5],
+      [cx, trunkTop, cx - W * 0.26, trunkTop - 12, cx - W * 0.40, H * 0.54, 4],
+      [cx, trunkTop, cx + W * 0.26, trunkTop - 12, cx + W * 0.40, H * 0.54, 4],
+      [cx - W * 0.16, trunkTop - 30, cx - W * 0.24, trunkTop - 55, cx - W * 0.20, H * 0.22, 3],
+      [cx + W * 0.16, trunkTop - 30, cx + W * 0.24, trunkTop - 55, cx + W * 0.20, H * 0.22, 3]
     ];
     branches.forEach(function (b) {
-      var mx = (b[0] + b[2]) / 2, my = (b[1] + b[3]) / 2 - 24;
-      s += '<path d="M' + b[0] + ' ' + b[1] + ' Q' + mx + ' ' + my + ' ' + b[2] + ' ' + b[3] + '" stroke="#8b5e3c" stroke-width="3" fill="none" stroke-linecap="round"/>';
+      s += '<path d="M' + b[0] + ' ' + b[1] + ' Q' + b[2] + ' ' + b[3] + ' ' + b[4] + ' ' + b[5]
+        + '" stroke="#7a4a2b" stroke-width="' + b[6] + '" fill="none" stroke-linecap="round"/>';
     });
-    // 几片淡淡的花瓣点缀枝头。
-    s += '<circle cx="' + (cx - W * 0.30) + '" cy="' + (H * 0.32) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
-    s += '<circle cx="' + (cx + W * 0.30) + '" cy="' + (H * 0.32) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
-    s += '<circle cx="' + cx + '" cy="' + (H * 0.10) + '" r="4" fill="#f4c7d3" opacity="0.7"/>';
+    // 花簇：在枝头和树冠处开几团樱花，树一下就满了。
+    var clusters = [
+      [cx - W * 0.30, H * 0.34, 26], [cx + W * 0.30, H * 0.34, 26], [cx, H * 0.10, 28],
+      [cx - W * 0.40, H * 0.54, 22], [cx + W * 0.40, H * 0.54, 22],
+      [cx - W * 0.20, H * 0.22, 20], [cx + W * 0.20, H * 0.22, 20],
+      [cx - W * 0.12, H * 0.42, 18], [cx + W * 0.12, H * 0.42, 18]
+    ];
+    clusters.forEach(function (cl) {
+      s += blossomCluster(cl[0], cl[1], cl[2]);
+    });
+    // 几片飘落的花瓣。
+    s += '<ellipse cx="' + (cx - W * 0.18).toFixed(1) + '" cy="' + (H * 0.62).toFixed(1) + '" rx="5" ry="3" fill="#f7c6d4" opacity="0.7" transform="rotate(30 ' + (cx - W * 0.18).toFixed(1) + ' ' + (H * 0.62).toFixed(1) + ')"/>';
+    s += '<ellipse cx="' + (cx + W * 0.22).toFixed(1) + '" cy="' + (H * 0.70).toFixed(1) + '" rx="5" ry="3" fill="#f7c6d4" opacity="0.7" transform="rotate(-25 ' + (cx + W * 0.22).toFixed(1) + ' ' + (H * 0.70).toFixed(1) + ')"/>';
     svg.innerHTML = s;
   }
   function layoutTree() {
