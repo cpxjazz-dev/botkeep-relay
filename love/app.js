@@ -9,13 +9,13 @@
   var carTimer = null;
   var coverIndex = 0;
   var stackIndex = 0;
-  var autoFxOn = false;
-  var autoFxTimer = null;
-  var autoFxIndex = 0;
   var ringAngle = 0;        // 圆环当前转角（度）
   var ringFocus = -1;       // 被点中的那张下标，-1 表示没点中
   var ringRotating = false; // 是否正在自动转
   var ringRaf = null;
+  var scrollRaf = null;     // 网格/瀑布流/满幅行的上下自动滚动
+  var scrollDir = 1;
+  var scrollPausedUntil = 0;
   var me = null;
 
   function api(path, opts) {
@@ -90,6 +90,8 @@
     });
     stopAuto();
     ringStop();
+    stopScroll();
+    stopAdvance();
     if (fx === 'carousel') {
       carIndex = 0;
       showSlide(0);
@@ -97,15 +99,33 @@
     } else if (fx === 'coverflow') {
       coverIndex = 0;
       layoutCoverflow();
+      startAdvance();
     } else if (fx === 'stack') {
       stackIndex = 0;
       layoutStack();
+      startAdvance();
     } else if (fx === 'scatter') {
       layoutScatter();
     } else if (fx === 'ring') {
       ringFocus = -1;
       ringStart();
       layoutRing();
+    } else if (fx === 'grid' || fx === 'masonry' || fx === 'justified') {
+      // 网格/瀑布流/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走。
+      gallery.scrollTop = 0;
+      scrollDir = 1;
+      startScroll();
+      // 其他效果下，把轮播/封面流/堆叠/扩散/环形留下的行内样式清掉，卡片恢复正常流式布局。
+      gallery.querySelectorAll('.photo-card').forEach(function (c) {
+        c.style.display = '';
+        c.style.transform = '';
+        c.style.opacity = '';
+        c.style.zIndex = '';
+        c.style.left = '';
+        c.style.top = '';
+        c.classList.remove('ring-focus');
+      });
+      gallery.style.height = '';
     } else {
       // 其他效果下，把轮播/封面流/堆叠/扩散/环形留下的行内样式清掉，卡片恢复正常流式布局。
       gallery.querySelectorAll('.photo-card').forEach(function (c) {
@@ -145,6 +165,7 @@
     if (!list.length) return;
     stackIndex = (i + list.length) % list.length;
     layoutStack();
+    if (currentFx === 'stack') startAdvance(); // 手动翻了，5 秒计时重来
   }
 
   // 堆叠下点顶上的牌：翻下一张。
@@ -299,6 +320,7 @@
     if (!list.length) return;
     coverIndex = (i + list.length) % list.length;
     layoutCoverflow();
+    if (currentFx === 'coverflow') startAdvance(); // 手动切了，5 秒计时重来
   }
 
   // 封面流下点一张非中间的卡：先把它挪到中间，不打开灯箱；点中间那张才打开灯箱。
@@ -335,45 +357,51 @@
     if (carTimer) { clearInterval(carTimer); carTimer = null; }
   }
 
-  /* 自动轮播效果：每 8 秒换一种展示效果，9 种轮一圈。只换着看，不改你保存的偏好；
-     手动点某个效果就停下来、听你的。切到后台标签页时暂停，回来再继续。 */
-  function startAutoFx() {
-    stopAutoFx();
-    autoFxOn = true;
-    autoFxIndex = FX.indexOf(currentFx);
-    if (autoFxIndex < 0) autoFxIndex = 0;
-    $('btn-autofx').textContent = '⏸ 停止轮播';
-    $('btn-autofx').classList.add('active');
-    autoFxTimer = setInterval(function () {
-      autoFxIndex = (autoFxIndex + 1) % FX.length;
-      applyFx(FX[autoFxIndex]);
-    }, 8000);
-  }
-  function stopAutoFx() {
-    if (autoFxTimer) { clearInterval(autoFxTimer); autoFxTimer = null; }
-    if (autoFxOn) {
-      autoFxOn = false;
-      $('btn-autofx').textContent = '▶️ 自动轮播';
-      $('btn-autofx').classList.remove('active');
+  /* 网格/瀑布流/满幅行：上下自动滚动，来回走。画廊是个固定高度的滚动区，
+     慢慢往下走，到底了再慢慢往上走；用户一动手（滚轮/触摸/点）就停 4 秒再继续。 */
+  function scrollTick() {
+    if (currentFx !== 'grid' && currentFx !== 'masonry' && currentFx !== 'justified') {
+      scrollRaf = null; return;
     }
+    if (Date.now() < scrollPausedUntil) {
+      scrollRaf = requestAnimationFrame(scrollTick); return;
+    }
+    var max = gallery.scrollHeight - gallery.clientHeight;
+    if (max <= 0) { scrollRaf = null; return; }
+    var next = gallery.scrollTop + scrollDir * 0.6; // 约 36px/秒，很慢
+    if (next >= max) { next = max; scrollDir = -1; }
+    if (next <= 0) { next = 0; scrollDir = 1; }
+    gallery.scrollTop = next;
+    scrollRaf = requestAnimationFrame(scrollTick);
   }
-
-  $('btn-autofx').addEventListener('click', function () {
-    if (autoFxOn) stopAutoFx();
-    else startAutoFx();
+  function startScroll() {
+    if (scrollRaf) return;
+    scrollDir = 1;
+    scrollRaf = requestAnimationFrame(scrollTick);
+  }
+  function stopScroll() {
+    if (scrollRaf) { cancelAnimationFrame(scrollRaf); scrollRaf = null; }
+  }
+  // 用户动手就暂停自动滚动 4 秒。
+  ['wheel', 'touchstart', 'pointerdown'].forEach(function (ev) {
+    gallery.addEventListener(ev, function () {
+      scrollPausedUntil = Date.now() + 4000;
+    }, { passive: true });
   });
 
-  document.addEventListener('visibilitychange', function () {
-    if (!autoFxOn) return;
-    if (document.hidden) {
-      if (autoFxTimer) { clearInterval(autoFxTimer); autoFxTimer = null; }
-    } else {
-      autoFxTimer = setInterval(function () {
-        autoFxIndex = (autoFxIndex + 1) % FX.length;
-        applyFx(FX[autoFxIndex]);
-      }, 8000);
-    }
-  });
+  /* 封面流/堆叠：每 5 秒自动切下一张（轮播本来就有 5 秒自动换，环形本来就在转）。
+     点卡片手动切的时候，计时重来。 */
+  var advTimer = null;
+  function startAdvance() {
+    stopAdvance();
+    advTimer = setInterval(function () {
+      if (currentFx === 'coverflow') coverGo(coverIndex + 1);
+      else if (currentFx === 'stack') stackGo(stackIndex + 1);
+    }, 5000);
+  }
+  function stopAdvance() {
+    if (advTimer) { clearInterval(advTimer); advTimer = null; }
+  }
 
   $('car-prev').addEventListener('click', function () {
     if (currentFx === 'coverflow') coverGo(coverIndex - 1);
@@ -396,7 +424,6 @@
   document.querySelectorAll('#fx-picker .fx-btn[data-fx]').forEach(function (b) {
     b.addEventListener('click', function () {
       var fx = b.getAttribute('data-fx');
-      stopAutoFx();
       applyFx(fx);
       if (!me) return;
       api('/love/api/prefs', {

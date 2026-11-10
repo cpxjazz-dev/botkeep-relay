@@ -233,6 +233,14 @@ body {
 .gallery.fx-polaroid .photo-card:hover img { transform: scale(1.05); }
 /* 网格：齐整方块，无倾斜、无胶带 */
 .gallery.fx-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+/* 网格/瀑布流/满幅行：画廊是固定高度的滚动区，上下自动滚动、来回走
+   （app.js 的 scrollTick 推 scrollTop，用户动手就停 4 秒）。 */
+.gallery.fx-grid,
+.gallery.fx-masonry,
+.gallery.fx-justified {
+  max-height: 75vh; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: thin; scroll-behavior: auto;
+}
 .gallery.fx-grid .photo-card { padding: 8px; border-radius: 10px; }
 .gallery.fx-grid .photo-card::before,
 .gallery.fx-grid .photo-card .heart-badge { display: none; }
@@ -500,9 +508,6 @@ footer a { color: var(--muted); }
   font-size: 13.5px; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-family: inherit;
 }
 .fx-btn.active { background: linear-gradient(90deg, var(--rose), #f08bb0); color: #fff; border-color: transparent; font-weight: 600; }
-/* 自动轮播开关：和效果按钮区分开（虚线边），开启时高亮。 */
-.fx-btn.autofx-btn { border-style: dashed; margin-left: 6px; }
-.fx-btn.autofx-btn.active { background: linear-gradient(90deg, #c96f8f, #e0789a); border-style: solid; }
 /* 展示效果选择条：单独放出来，登录后可见；专注看图时只留它和照片。 */
 .fx-bar {
   max-width: 680px; margin: 28px auto 0;
