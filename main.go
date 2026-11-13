@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -665,6 +666,11 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	// 内存上限：这台机器只有 512MB，Go 堆默认会一直涨到 OOM 才停。
+	// 设 256MB 软上限，堆快满时 GC 提前干活，宁可慢一点也不被杀。
+	// 2026-11-13：11 月 10–12 日堆从 17MB 涨到 141.8MB 后断服，见 README。
+	debug.SetMemoryLimit(256 << 20)
+	log.Printf("内存上限：256 MB；图片处理后主动释放")
 	loadEnvFile(".env.local")
 	loadConfig()
 	loadHistory()

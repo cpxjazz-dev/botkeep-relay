@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -572,6 +573,10 @@ func handleLoveUpload(w http.ResponseWriter, r *http.Request) {
 	// （GIF 动图和解不出来的原样存。）
 	filename := header.Filename
 	data, filename, ct = compressLoveImage(data, filename)
+	// 解码一张手机照片要几十 MB 的 RGBA，堆顶上去 Go 就攥着不还
+	// （11 月 10–12 日就是这么从 17MB 涨到 141.8MB 的）。
+	// 处理完把多拿的内存还给系统，水位不再一轮轮往上顶。
+	defer debug.FreeOSMemory()
 	ext = extForContentType(ct)
 	caption := strings.TrimSpace(r.FormValue("caption"))
 	if len(caption) > 200 {

@@ -133,7 +133,9 @@ love 站有自己的账户系统，数据存在 Neon Postgres（Love 项目，`l
 
 ## 部署（Botkeep）
 
-服务器已切到 Go 1.27.1，启动命令 `go build -o relay . && ./relay`（先编译出约 10 MB 的静态二进制再跑，重启快、内存只有约 43 MB；直接 `go run .` 也能跑，但编译慢、内存约 200 MB）。把 `main.go`、`index.html`、`go.mod` 传到服务器根目录，点 Start 即可。域名：`https://rxs3yg.bot-keep.xyz/`。
+服务器跑 Go 1.27.1，启动命令是 `./relay`（直接跑预编译好的静态二进制，约 16 MB）。**不要再用 `go build -o relay . && ./relay` 当启动命令**：冷编译峰值内存约 330MB，机器上限才 512MB，重启很容易撞上限失败——2026-11-12 就是这么断了几个小时。部署流程：先在本地或 InstaBox 上 `go build` 编出二进制，连同改动过的源码文件一起传到服务器根目录，确认启动命令是 `./relay`，点 Start 即可。域名：`https://rxs3yg.bot-keep.xyz/`。
+
+内存：进程设了 256MB 软上限（`debug.SetMemoryLimit`），堆快满时 GC 提前干活；上传图片做完压缩和缩略图后主动把内存还给系统（`debug.FreeOSMemory`），堆不再一轮轮往上顶。心跳报的内存是 Go 从系统拿到的总量（Sys），只涨不回的高水位——2026-11-10 17MB、11-12 141.8MB 就是这么涨上去的。
 
 ## QQ 说明
 
